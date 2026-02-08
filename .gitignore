@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+ML/
+MotionIQ/
+__pycache__/
+*.pkl
+*.h5
+*.zip

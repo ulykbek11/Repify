@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>MotionIQ Banner A1</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f0f0f;
+            --bg-gradient: linear-gradient(135deg, #121212 0%, #050505 100%);
+            --accent: #D4AF37; /* Premium Gold */
+            --accent-glow: rgba(212, 175, 55, 0.6);
+            --text-white: #ffffff;
+            --text-gray: #e0e0e0;
+            --card-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+
+        .print-instructions {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(212, 175, 55, 0.95);
+            color: black;
+            padding: 25px;
+            border-radius: 12px;
+            z-index: 9999;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-width: 450px;
+            border: 2px solid white;
+        }
+
+        .print-instructions h3 { margin-top: 0; font-weight: 900; }
+        .print-instructions li { margin-bottom: 8px; font-weight: 600; }
+        .print-instructions button {
+            background: black; color: white; border: none; padding: 10px 20px;
+            border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px;
+        }
+
+        @page {
+            size: A1 landscape; /* 841mm x 594mm */
+            margin: 0;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 841mm;
+            height: 594mm;
+            background: var(--bg-gradient);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-white);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            padding: 40mm 50mm;
+            position: relative;
+            z-index: 10;
+        }
+
+        .left-content {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            padding-right: 20mm;
+        }
+
+        .right-content {
+            flex: 0.8;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-end;
+            padding-left: 20mm;
+            position: relative;
+        }
+
+        /* Logo Area */
+        .logo-container {
+            margin-bottom: 20mm;
+        }
+        
+        /* Typography */
+        h1 {
+            font-size: 85pt;
+            font-weight: 900;
+            line-height: 1;
+            margin: 0 0 15mm 0;
+            letter-spacing: -2px;
+            text-transform: uppercase;
+        }
+        
+        .highlight {
+            color: var(--accent);
+            text-shadow: 0 0 40px rgba(212, 175, 55, 0.3);
+        }
+
+        .description-block {
+            margin-top: 10mm;
+            padding-top: 10mm;
+            border-top: 2px solid rgba(255,255,255,0.1);
+        }
+
+        h2.subtitle {
+            font-size: 36pt;
+            color: var(--accent);
+            margin-bottom: 10mm;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .steps {
+            display: flex;
+            gap: 15mm;
+        }
+
+        .step-item {
+            flex: 1;
+            background: var(--card-bg);
+            padding: 10mm;
+            border-radius: 4mm;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .step-num {
+            font-size: 40pt;
+            font-weight: 900;
+            color: rgba(255,255,255,0.1);
+            margin-bottom: 5mm;
+            line-height: 1;
+        }
+
+        .step-title {
+            font-size: 20pt;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 5mm;
+        }
+
+        .step-desc {
+            font-size: 16pt;
+            color: var(--text-gray);
+            line-height: 1.4;
+        }
+
+        /* QR Code Area */
+        .qr-card {
+            background: rgba(20, 20, 20, 0.6);
+            padding: 20mm;
+            border-radius: 8mm;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(30px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+            position: relative;
+            z-index: 20;
+        }
+
+        .qr-code-svg {
+            width: 160mm;
+            height: 160mm;
+            margin-bottom: 10mm;
+            background: white;
+            padding: 5mm;
+            border-radius: 4mm;
+        }
+
+        .qr-label {
+            font-size: 24pt;
+            color: var(--accent);
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 5mm;
+        }
+
+        .qr-sub {
+            font-size: 16pt;
+            color: #fff;
+            opacity: 0.6;
+            margin-top: 5mm;
+        }
+
+        /* Background Elements */
+        .grid-bg {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 40mm 40mm;
+            z-index: 0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="print-instructions no-print">
+        <h3>⚠️ ВАЖНО ДЛЯ ПЕЧАТИ</h3>
+        <p>Чтобы фон стал черным:</p>
+        <ol>
+            <li>Нажмите <b>Ctrl + P</b> (Печать)</li>
+            <li>В настройках найдите <b>"Параметры" (Options)</b></li>
+            <li>✅ ПОСТАВЬТЕ ГАЛОЧКУ <b>"Фон" (Background graphics)</b></li>
+            <li>Уберите поля (Margins: None)</li>
+        </ol>
+        <button onclick="this.parentElement.style.display='none'">Понятно, закрыть</button>
+    </div>
+
+    <div class="grid-bg"></div>
+    
+    <div class="container">
+        <div class="left-content">
+            <div class="logo-container">
+                <!-- Expanded SVG to fit full text -->
+                <svg width="600" height="120" viewBox="0 0 600 120" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#D4AF37;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#F4C430;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <!-- Icon M -->
+                    <path d="M10,100 L50,20 L90,80 L130,20 L170,100" stroke="url(#goldGrad)" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    <!-- Text -->
+                    <text x="200" y="85" font-family="'Inter', sans-serif" font-weight="900" font-size="80" fill="white" letter-spacing="-2">
+                        MOTION<tspan fill="url(#goldGrad)">IQ</tspan>
+                    </text>
+                </svg>
+            </div>
+
+            <h1>MotionIQ — <br>Умный <span class="highlight">AI-анализ</span> тренировок</h1>
+            
+            <div class="description-block">
+                <h2 class="subtitle">Как это работает</h2>
+                <div class="steps">
+                    <div class="step-item">
+                        <div class="step-num">01</div>
+                        <div class="step-title">Съемка</div>
+                        <div class="step-desc">Камера фиксирует ваши движения в реальном времени, создавая цифровую модель тела.</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">02</div>
+                        <div class="step-title">AI-Анализ</div>
+                        <div class="step-desc">Нейросеть мгновенно сравнивает вашу технику с эталоном, выявляя ошибки в углах и амплитуде.</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">03</div>
+                        <div class="step-title">Результат</div>
+                        <div class="step-desc">Получайте голосовые подсказки и детальную статистику для безопасного прогресса.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-content">
+            <div class="qr-card">
+                <div id="qrcode" class="qr-code-svg"></div>
+                <div class="qr-label">Скачать в Expo Go</div>
+                <div class="qr-sub">Наведи камеру для старта</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ======================================================================
+        // ВАЖНО: ЗАМЕНИТЕ ЭТУ ССЫЛКУ НА ВАШУ АКТУАЛЬНУЮ ССЫЛКУ EXPO
+        // ======================================================================
+        const PROJECT_URL = "exp://192.168.10.50:8081"; 
+        // ======================================================================
+
+        const typeNumber = 0;
+        const errorCorrectionLevel = 'M';
+        const qr = qrcode(typeNumber, errorCorrectionLevel);
+        qr.addData(PROJECT_URL);
+        qr.make();
+        
+        document.getElementById('qrcode').innerHTML = qr.createSvgTag({
+            cellSize: 2, 
+            margin: 0,
+            scalable: true
+        });
+        
+        const svgElement = document.querySelector('#qrcode svg');
+        if(svgElement) {
+            svgElement.setAttribute('width', '100%');
+            svgElement.setAttribute('height', '100%');
+        }
+    </script>
+</body>
+</html>
