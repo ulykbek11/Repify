@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Lock, Mail, Target, ArrowRight, Activity, Eye, EyeOff } from 'lucide-react-native';
+import { CustomAlert } from '../components/CustomAlert';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -12,28 +13,58 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation();
 
+  // Alert State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({ title: '', message: '', type: 'info', onConfirm: () => {} });
+
+  const showAlert = (title, message, type = 'info', onConfirm = null) => {
+    setAlertConfig({ 
+        title, 
+        message, 
+        type, 
+        onConfirm: onConfirm || (() => setAlertVisible(false)) 
+    });
+    setAlertVisible(true);
+  };
+
   async function signInWithEmail() {
     if (!email || !password) {
-      Alert.alert('Ошибка', 'Пожалуйста, заполните все поля');
+      showAlert('Ошибка', 'Пожалуйста, заполните все поля', 'error');
       return;
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
-      Alert.alert('Ошибка', error.message);
+      showAlert('Ошибка', error.message, 'error');
       setLoading(false);
     } else {
-      navigation.replace('Main');
+      // Check for onboarding status
+      if (data.user?.user_metadata?.onboarding_completed) {
+        navigation.replace('Main');
+      } else {
+        navigation.replace('Onboarding', {
+            // Pass minimal necessary info or just rely on current user session
+            // We can also refetch name if needed, but session is active now
+        });
+      }
     }
   }
 
   return (
     <SafeAreaView className="flex-1 bg-background justify-center px-8">
+      <CustomAlert 
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={alertConfig.onConfirm}
+      />
+
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View className="items-center mb-12">
           <View className="w-24 h-24 items-center justify-center mb-6">

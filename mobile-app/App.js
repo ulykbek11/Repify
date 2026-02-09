@@ -12,12 +12,13 @@ import HomeScreen from './src/screens/HomeScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
 import AnalysisResultScreen from './src/screens/AnalysisResultScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import LeaderboardScreen from './src/screens/LeaderboardScreen';
+import ProgressScreen from './src/screens/ProgressScreen';
 import PlanGenerationLoadingScreen from './src/screens/PlanGenerationLoadingScreen';
 import PlanSuccessScreen from './src/screens/PlanSuccessScreen';
 import FullPlanScreen from './src/screens/FullPlanScreen';
 import WorkoutDayScreen from './src/screens/WorkoutDayScreen';
 import PlanSettingsScreen from './src/screens/PlanSettingsScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import linking from './src/navigation/linking';
 
 const Stack = createNativeStackNavigator();
@@ -52,10 +53,10 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
-        name="LeaderboardTab"
-        component={LeaderboardScreen}
+        name="ProgressTab"
+        component={ProgressScreen}
         options={{
-          tabBarLabel: 'Лидеры',
+          tabBarLabel: 'Прогресс',
           tabBarIcon: ({ color, size }) => <Trophy color={color} size={size} />
         }}
       />
@@ -85,6 +86,7 @@ export default function App() {
         >
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
+          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           <Stack.Screen name="PlanGenerationLoading" component={PlanGenerationLoadingScreen} options={{ headerShown: false }} />
           <Stack.Screen name="PlanSuccess" component={PlanSuccessScreen} options={{ headerShown: false }} />
           <Stack.Screen name="FullPlan" component={FullPlanScreen} options={{ headerShown: false }} />

@@ -1,23 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, CheckCircle, Clock, Play } from 'lucide-react-native';
 
 export default function WorkoutDayScreen() {
   const navigation = useNavigation();
-  const [exercises, setExercises] = useState([
-    { id: 1, title: 'Жим штанги лёжа', muscle: 'Грудь', type: 'Базовое', sets: 4, reps: 10, rest: 90, status: 'completed' },
-    { id: 2, title: 'Жим гантелей на наклонной', muscle: 'Грудь', type: 'Изоляция', sets: 3, reps: 12, rest: 60, status: 'in_progress' },
-    { id: 3, title: 'Отжимания на брусьях', muscle: 'Трицепс', type: 'Базовое', sets: 3, reps: 12, rest: 60, status: 'pending' },
-    { id: 4, title: 'Разгибание рук на блоке', muscle: 'Трицепс', type: 'Изоляция', sets: 3, reps: 15, rest: 45, status: 'pending' },
-    { id: 5, title: 'Сведение рук в кроссовере', muscle: 'Грудь', type: 'Изоляция', sets: 3, reps: 15, rest: 45, status: 'pending' },
-    { id: 6, title: 'Французский жим', muscle: 'Трицепс', type: 'Изоляция', sets: 3, reps: 12, rest: 60, status: 'pending' },
-  ]);
+  const route = useRoute();
+  const { day } = route.params || {};
+
+  const [exercises, setExercises] = useState([]);
+
+  useEffect(() => {
+    if (day && day.exercises) {
+        // Map simple string exercises to detailed objects if needed
+        const mappedExercises = day.exercises.map((exName, index) => ({
+            id: index + 1,
+            title: exName,
+            muscle: 'Мышцы', // Generic placeholder
+            type: 'Упражнение',
+            sets: day.sets || 3,
+            reps: day.reps || '10',
+            rest: 60,
+            status: index === 0 ? 'in_progress' : 'pending'
+        }));
+        setExercises(mappedExercises);
+    } else {
+        // Fallback default
+        setExercises([
+            { id: 1, title: 'Жим штанги лёжа', muscle: 'Грудь', type: 'Базовое', sets: 4, reps: 10, rest: 90, status: 'completed' },
+            { id: 2, title: 'Жим гантелей на наклонной', muscle: 'Грудь', type: 'Изоляция', sets: 3, reps: 12, rest: 60, status: 'in_progress' },
+        ]);
+    }
+  }, [day]);
 
   const completedCount = exercises.filter(e => e.status === 'completed').length;
-  const progress = (completedCount / exercises.length) * 100;
+  const progress = exercises.length > 0 ? (completedCount / exercises.length) * 100 : 0;
+  const dayTitle = day?.day || 'Тренировка';
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -31,8 +51,8 @@ export default function WorkoutDayScreen() {
                 <ChevronLeft color="white" size={24} />
             </TouchableOpacity>
             <View>
-                <Text className="text-white text-xl font-bold">День 1: Грудь + Трицепс</Text>
-                <Text className="text-white/60 text-sm">6 упражнений • ~45 минут</Text>
+                <Text className="text-white text-xl font-bold">{dayTitle}</Text>
+                <Text className="text-white/60 text-sm">{exercises.length} упражнений • ~45 минут</Text>
             </View>
         </View>
 

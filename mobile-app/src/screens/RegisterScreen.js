@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Lock, Mail, User, ArrowLeft, Eye, EyeOff, Activity } from 'lucide-react-native';
+import { CustomAlert } from '../components/CustomAlert';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
@@ -11,44 +12,76 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Alert State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({ title: '', message: '', type: 'info', onConfirm: () => {} });
+
   const navigation = useNavigation();
 
-  async function signUpWithEmail() {
+  const showAlert = (title, message, type = 'info', onConfirm = null) => {
+    setAlertConfig({ 
+        title, 
+        message, 
+        type, 
+        onConfirm: onConfirm || (() => setAlertVisible(false)) 
+    });
+    setAlertVisible(true);
+  };
+
+  async function handleRegister() {
     if (!email || !password || !fullName) {
-      Alert.alert('Ошибка', 'Пожалуйста, заполните все поля');
+      showAlert('Ошибка', 'Пожалуйста, заполните все поля', 'error');
       return;
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
+          // We'll set these later in Onboarding
+          onboarding_completed: false
         },
       },
     });
 
+    setLoading(false);
+
     if (error) {
-      Alert.alert('Ошибка', error.message);
-      setLoading(false);
+      showAlert('Ошибка', error.message, 'error');
     } else {
-      Alert.alert(
-        'Регистрация успешна',
-        'На вашу почту отправлено письмо для подтверждения аккаунта. Пожалуйста, перейдите по ссылке в письме.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Login'),
-          },
-        ]
+      // Check if user identity exists (duplicate email check)
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+         showAlert('Ошибка', 'Пользователь с таким email уже существует.', 'error');
+         return;
+      }
+
+      showAlert(
+        'Подтверждение почты',
+        'На вашу почту отправлено письмо для подтверждения. Пожалуйста, подтвердите почту перед входом.',
+        'success',
+        () => {
+            setAlertVisible(false);
+            navigation.navigate('Login');
+        }
       );
     }
   }
 
   return (
     <SafeAreaView className="flex-1 bg-background px-8">
+      <CustomAlert 
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={alertConfig.onConfirm}
+      />
+      
       <TouchableOpacity 
         onPress={() => navigation.goBack()}
         className="mt-4 mb-8 w-10 h-10 bg-surface rounded-full items-center justify-center border border-white/5"
@@ -103,21 +136,21 @@ export default function RegisterScreen() {
               )}
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity 
-            onPress={signUpWithEmail}
-            disabled={loading}
-            className="bg-primary h-14 rounded-2xl items-center justify-center shadow-lg shadow-primary/30 mt-6"
-          >
-            {loading ? (
-              <Activity size={24} color="white" />
-            ) : (
-              <Text className="text-white font-bold text-lg">Зарегистрироваться</Text>
-            )}
-          </TouchableOpacity>
         </View>
 
-        <View className="flex-row justify-center mt-8">
+        <TouchableOpacity
+          onPress={handleRegister}
+          disabled={loading}
+          className="w-full bg-primary py-4 rounded-2xl mt-8 flex-row justify-center items-center"
+        >
+          {loading ? (
+            <Activity color="white" size={20} />
+          ) : (
+            <Text className="text-white font-bold text-lg">Зарегистрироваться</Text>
+          )}
+        </TouchableOpacity>
+
+        <View className="flex-row justify-center mt-6">
           <Text className="text-muted text-base">Уже есть аккаунт? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Login')}>
             <Text className="text-primary font-bold text-base">Войти</Text>
