@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { Home, User, Trophy, PlayCircle } from 'lucide-react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -13,6 +13,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
 import AnalysisResultScreen from './src/screens/AnalysisResultScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import EditProfileScreen from './src/screens/EditProfileScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
 import PlanGenerationLoadingScreen from './src/screens/PlanGenerationLoadingScreen';
 import PlanSuccessScreen from './src/screens/PlanSuccessScreen';
@@ -20,11 +21,14 @@ import FullPlanScreen from './src/screens/FullPlanScreen';
 import WorkoutDayScreen from './src/screens/WorkoutDayScreen';
 import PlanSettingsScreen from './src/screens/PlanSettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import linking from './src/navigation/linking';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function TabNavigator() {
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       screenOptions={{
@@ -32,8 +36,8 @@ function TabNavigator() {
         tabBarStyle: {
           backgroundColor: '#0A0E1A',
           borderTopColor: '#1A1F2E',
-          height: Platform.OS === 'android' ? 70 : 60,
-          paddingBottom: Platform.OS === 'android' ? 12 : 8,
+          height: Platform.OS === 'android' ? 60 + insets.bottom + 10 : 60 + insets.bottom,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 12 : 8),
           paddingTop: 8,
         },
         tabBarActiveTintColor: '#FF6B00',
@@ -75,7 +79,7 @@ function TabNavigator() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <StatusBar style="light" />
         <Stack.Navigator 
           initialRouteName="Login"
@@ -93,6 +97,7 @@ export default function App() {
           <Stack.Screen name="WorkoutDay" component={WorkoutDayScreen} options={{ headerShown: false }} />
           <Stack.Screen name="PlanSettings" component={PlanSettingsScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Main" component={TabNavigator} />
+          <Stack.Screen name="EditProfile" component={EditProfileScreen} />
           <Stack.Screen name="Exercise" component={ExerciseScreen} />
           <Stack.Screen name="AnalysisResult" component={AnalysisResultScreen} />
         </Stack.Navigator>

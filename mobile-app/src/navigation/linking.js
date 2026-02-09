@@ -17,7 +17,7 @@ const config = {
 };
 
 const linking = {
-    prefixes: [Linking.createURL('/')],
+    prefixes: [Linking.createURL('/'), 'repify://'],
     config,
 };
 
