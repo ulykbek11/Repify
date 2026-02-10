@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { Camera } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ArrowLeft, Video, StopCircle } from 'lucide-react-native';
+import { API_URL } from '../config';
 
 export default function ExerciseScreen() {
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
   const cameraRef = useRef(null);
@@ -14,23 +15,14 @@ export default function ExerciseScreen() {
   const route = useRoute();
   const { exercise } = route.params;
 
-  useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      const audioStatus = await Camera.requestMicrophonePermissionsAsync();
-      setHasPermission(status === 'granted' && audioStatus.status === 'granted');
-    })();
-  }, []);
-
   const startRecording = async () => {
     if (cameraRef.current) {
       setIsRecording(true);
       try {
         const video = await cameraRef.current.recordAsync({
-          quality: Camera.Constants.VideoQuality['720p'],
           maxDuration: 60,
         });
-        
+
         if (video) {
           handleAnalysis(video.uri);
         }
@@ -50,7 +42,7 @@ export default function ExerciseScreen() {
 
   const handleAnalysis = async (videoUri) => {
     setLoading(true);
-    
+
     // Create form data
     const formData = new FormData();
     formData.append('file', {
@@ -61,9 +53,7 @@ export default function ExerciseScreen() {
     formData.append('exercise', exercise);
 
     try {
-      // Replace with your actual backend URL (e.g. from ngrok or local IP)
-      // For Emulator use 10.0.2.2 for localhost
-      const response = await fetch('http://10.0.2.2:8000/analyze_video', {
+      const response = await fetch(`${API_URL}/analyze_video`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -81,14 +71,15 @@ export default function ExerciseScreen() {
     }
   };
 
-  if (hasPermission === null) {
+  if (!permission) {
     return <View className="flex-1 bg-background" />;
   }
-  if (hasPermission === false) {
+
+  if (!permission.granted) {
     return (
       <SafeAreaView className="flex-1 bg-background items-center justify-center px-6">
         <Text className="text-white text-center text-lg mb-4">No access to camera</Text>
-        <TouchableOpacity onPress={() => Camera.requestCameraPermissionsAsync()} className="bg-primary px-8 py-4 rounded-full shadow-glow">
+        <TouchableOpacity onPress={requestPermission} className="bg-primary px-8 py-4 rounded-full shadow-glow">
           <Text className="text-white font-bold text-lg">Разрешить доступ</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -97,14 +88,15 @@ export default function ExerciseScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <Camera 
-        ref={cameraRef} 
-        style={{ flex: 1 }} 
-        type={Camera.Constants.Type.back}
+      <CameraView
+        ref={cameraRef}
+        style={{ flex: 1 }}
+        facing="back"
+        mode="video"
       >
         <SafeAreaView className="flex-1 justify-between p-6">
           <View className="flex-row items-center justify-between">
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => navigation.goBack()}
               className="w-10 h-10 bg-black/40 rounded-full items-center justify-center backdrop-blur-md"
             >
@@ -131,14 +123,14 @@ export default function ExerciseScreen() {
                   <View className="w-8 h-8 bg-white rounded-md" />
                 ) : (
                   <View className="w-16 h-16 bg-primary rounded-full items-center justify-center border-2 border-white">
-                     <Video color="white" size={32} fill="white" />
+                    <Video color="white" size={32} fill="white" />
                   </View>
                 )}
               </TouchableOpacity>
             )}
           </View>
         </SafeAreaView>
-      </Camera>
+      </CameraView>
     </View>
   );
 }

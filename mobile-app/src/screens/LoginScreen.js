@@ -15,14 +15,14 @@ export default function LoginScreen() {
 
   // Alert State
   const [alertVisible, setAlertVisible] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({ title: '', message: '', type: 'info', onConfirm: () => {} });
+  const [alertConfig, setAlertConfig] = useState({ title: '', message: '', type: 'info', onConfirm: () => { } });
 
   const showAlert = (title, message, type = 'info', onConfirm = null) => {
-    setAlertConfig({ 
-        title, 
-        message, 
-        type, 
-        onConfirm: onConfirm || (() => setAlertVisible(false)) 
+    setAlertConfig({
+      title,
+      message,
+      type,
+      onConfirm: onConfirm || (() => setAlertVisible(false))
     });
     setAlertVisible(true);
   };
@@ -43,21 +43,31 @@ export default function LoginScreen() {
       showAlert('Ошибка', error.message, 'error');
       setLoading(false);
     } else {
-      // Check for onboarding status
-      if (data.user?.user_metadata?.onboarding_completed) {
+      const metadata = data.user?.user_metadata || {};
+
+      // Navigation logic:
+      // 1. If onboarding completed → Main
+      // 2. If calibration completed or skipped (calibrated exists) → Onboarding
+      // 3. If new user (no calibration field) → Calibration
+
+      if (metadata.onboarding_completed) {
+        // User finished everything
         navigation.replace('Main');
+      } else if ('calibrated' in metadata) {
+        // User has calibration status (true or false), go to Onboarding
+        navigation.replace('Onboarding');
       } else {
-        navigation.replace('Onboarding', {
-            // Pass minimal necessary info or just rely on current user session
-            // We can also refetch name if needed, but session is active now
-        });
+        // New user, no calibration yet
+        navigation.replace('Calibration');
       }
+
+      setLoading(false);
     }
   }
 
   return (
     <SafeAreaView className="flex-1 bg-background justify-center px-8">
-      <CustomAlert 
+      <CustomAlert
         visible={alertVisible}
         title={alertConfig.title}
         message={alertConfig.message}
@@ -68,8 +78,8 @@ export default function LoginScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View className="items-center mb-12">
           <View className="w-24 h-24 items-center justify-center mb-6">
-            <Image 
-              source={require('../../assets/logo.png')} 
+            <Image
+              source={require('../../assets/logo.png')}
               className="w-full h-full"
               resizeMode="contain"
             />
@@ -111,7 +121,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={signInWithEmail}
             disabled={loading}
             className="bg-primary h-14 rounded-2xl items-center justify-center shadow-lg shadow-primary/30 mt-4 flex-row space-x-2"

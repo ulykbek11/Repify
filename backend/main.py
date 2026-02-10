@@ -10,6 +10,7 @@ import shutil
 import tempfile
 
 from core.analyzer import SquatAnalyzer, DeadliftAnalyzer
+from core.calibration import CalibrationAnalyzer, ValidationError
 
 app = FastAPI()
 
@@ -127,6 +128,58 @@ async def analyze_video_endpoint(
         # Clean up temp file
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
+
+@app.post("/calibrate_user")
+async def calibrate_user_endpoint(
+    file: UploadFile = File(...),
+    user_id: str = Form(...)
+):
+    """
+    Калибровка пользователя: анализ 5 приседаний для определения
+    анатомических пропорций и генерации персональных порогов.
+    """
+    print(f"📐 Calibration request for user: {user_id}")
+    
+    # Save temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+    
+    print(f"💾 Saved calibration video to: {tmp_path}")
+    
+    try:
+        analyzer = CalibrationAnalyzer()
+        result = analyzer.analyze_video(tmp_path)
+        
+        print(f"✅ Calibration complete for {user_id}: {result}")
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            **result
+        }
+        
+    except ValidationError as e:
+        print(f"⚠️ Calibration validation error: {str(e)}")
+        return {
+            "status": "error",
+            "error_type": "validation",
+            "message": str(e)
+        }
+        
+    except Exception as e:
+        print(f"❌ Calibration error: {str(e)}")
+        return {
+            "status": "error",
+            "error_type": "internal",
+            "message": str(e)
+        }
+        
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

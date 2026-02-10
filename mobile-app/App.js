@@ -21,6 +21,7 @@ import FullPlanScreen from './src/screens/FullPlanScreen';
 import WorkoutDayScreen from './src/screens/WorkoutDayScreen';
 import PlanSettingsScreen from './src/screens/PlanSettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import CalibrationScreen from './src/screens/CalibrationScreen';
 import linking from './src/navigation/linking';
 
 const Stack = createNativeStackNavigator();
@@ -28,7 +29,7 @@ const Tab = createBottomTabNavigator();
 
 function TabNavigator() {
   const insets = useSafeAreaInsets();
-  
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -81,15 +82,16 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer linking={linking}>
         <StatusBar style="light" />
-        <Stack.Navigator 
+        <Stack.Navigator
           initialRouteName="Login"
-          screenOptions={{ 
+          screenOptions={{
             headerShown: false,
             cardStyle: { backgroundColor: '#0A0E1A' }
           }}
         >
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
+          <Stack.Screen name="Calibration" component={CalibrationScreen} />
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           <Stack.Screen name="PlanGenerationLoading" component={PlanGenerationLoadingScreen} options={{ headerShown: false }} />
           <Stack.Screen name="PlanSuccess" component={PlanSuccessScreen} options={{ headerShown: false }} />
