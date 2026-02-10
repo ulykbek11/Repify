@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -10,7 +10,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true to check session
   const navigation = useNavigation();
 
   // Alert State
@@ -26,6 +26,42 @@ export default function LoginScreen() {
     });
     setAlertVisible(true);
   };
+
+  useEffect(() => {
+    checkSession();
+  }, []);
+
+  async function checkSession() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('Session found, redirecting...');
+        handleNavigation(session.user);
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Session check failed:', error);
+      setLoading(false);
+    }
+  }
+
+  function handleNavigation(user) {
+    const metadata = user?.user_metadata || {};
+
+    // Navigation logic:
+    // 1. If onboarding completed → Main
+    // 2. If calibration completed or skipped (calibrated exists) → Onboarding
+    // 3. If new user (no calibration field) → Calibration
+
+    if (metadata.onboarding_completed) {
+      navigation.replace('Main');
+    } else if ('calibrated' in metadata) {
+      navigation.replace('Onboarding');
+    } else {
+      navigation.replace('Calibration');
+    }
+  }
 
   async function signInWithEmail() {
     if (!email || !password) {
@@ -43,26 +79,18 @@ export default function LoginScreen() {
       showAlert('Ошибка', error.message, 'error');
       setLoading(false);
     } else {
-      const metadata = data.user?.user_metadata || {};
-
-      // Navigation logic:
-      // 1. If onboarding completed → Main
-      // 2. If calibration completed or skipped (calibrated exists) → Onboarding
-      // 3. If new user (no calibration field) → Calibration
-
-      if (metadata.onboarding_completed) {
-        // User finished everything
-        navigation.replace('Main');
-      } else if ('calibrated' in metadata) {
-        // User has calibration status (true or false), go to Onboarding
-        navigation.replace('Onboarding');
-      } else {
-        // New user, no calibration yet
-        navigation.replace('Calibration');
-      }
-
-      setLoading(false);
+      handleNavigation(data.user);
+      // Don't set loading false here as we are navigating away
     }
+  }
+
+  if (loading && !email && !password) {
+    // Initial loading screen
+    return (
+      <View className="flex-1 bg-background justify-center items-center">
+        <Activity size="large" color="#FF6B00" />
+      </View>
+    );
   }
 
   return (

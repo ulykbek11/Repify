@@ -3,13 +3,17 @@ import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-na
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { ArrowLeft, Video, StopCircle } from 'lucide-react-native';
+import { ArrowLeft, Video, StopCircle, RefreshCw } from 'lucide-react-native';
 import { API_URL } from '../config';
+import { BioMechanicsEngine } from '../lib/BioMechanicsEngine';
+import { supabase } from '../lib/supabase';
+
 
 export default function ExerciseScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [facing, setFacing] = useState('back');
   const cameraRef = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();
@@ -43,25 +47,14 @@ export default function ExerciseScreen() {
   const handleAnalysis = async (videoUri) => {
     setLoading(true);
 
-    // Create form data
-    const formData = new FormData();
-    formData.append('file', {
-      uri: videoUri,
-      type: 'video/mp4',
-      name: 'exercise.mp4',
-    });
-    formData.append('exercise', exercise);
-
     try {
-      const response = await fetch(`${API_URL}/analyze_video`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // Get user profile for genetic context
+      const { data: { user } } = await supabase.auth.getUser();
+      const userProfile = user?.user_metadata || {};
 
-      const result = await response.json();
+      console.log('Starting BioMechanics Analysis...');
+      const result = await BioMechanicsEngine.analyzeTechnique(exercise.title || exercise, videoUri, userProfile);
+      
       setLoading(false);
       navigation.navigate('AnalysisResult', { result });
     } catch (error) {
@@ -91,7 +84,7 @@ export default function ExerciseScreen() {
       <CameraView
         ref={cameraRef}
         style={{ flex: 1 }}
-        facing="back"
+        facing={facing}
         mode="video"
       >
         <SafeAreaView className="flex-1 justify-between p-6">
@@ -105,7 +98,13 @@ export default function ExerciseScreen() {
             <View className="bg-black/40 px-4 py-2 rounded-full backdrop-blur-md">
               <Text className="text-white font-bold capitalize">{exercise}</Text>
             </View>
-            <View className="w-10" />
+            <TouchableOpacity
+              onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}
+              className="w-10 h-10 bg-black/40 rounded-full items-center justify-center backdrop-blur-md"
+              disabled={isRecording}
+            >
+              <RefreshCw color={isRecording ? "#888" : "white"} size={20} />
+            </TouchableOpacity>
           </View>
 
           <View className="items-center mb-8">

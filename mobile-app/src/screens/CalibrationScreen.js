@@ -4,9 +4,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Video, StopCircle, Check, AlertTriangle, RotateCcw, SkipForward } from 'lucide-react-native';
+import { ArrowLeft, Video, StopCircle, Check, AlertTriangle, RotateCcw, SkipForward, RefreshCw } from 'lucide-react-native';
 import { CustomAlert } from '../components/CustomAlert';
 import { API_URL } from '../config';
+import { BioMechanicsEngine } from '../lib/BioMechanicsEngine';
+
 
 const { width } = Dimensions.get('window');
 
@@ -26,6 +28,7 @@ export default function CalibrationScreen() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
+    const [facing, setFacing] = useState('back');
 
     const cameraRef = useRef(null);
     const navigation = useNavigation();
@@ -57,6 +60,7 @@ export default function CalibrationScreen() {
 
     const startRecording = async () => {
         if (cameraRef.current) {
+            console.log('[CalibrationScreen] Starting video recording...');
             setIsRecording(true);
             setStep(STEPS.RECORD);
 
@@ -65,11 +69,16 @@ export default function CalibrationScreen() {
                     maxDuration: 60,
                 });
 
+                console.log('[CalibrationScreen] Recording complete:', {
+                    uri: video?.uri,
+                    duration: video?.duration,
+                });
+
                 if (video) {
                     handleCalibration(video.uri);
                 }
             } catch (err) {
-                console.error('Recording error:', err);
+                console.error('[CalibrationScreen] Recording error:', err);
                 setError('Ошибка записи видео');
                 setIsRecording(false);
             }
@@ -78,69 +87,55 @@ export default function CalibrationScreen() {
 
     const stopRecording = () => {
         if (cameraRef.current && isRecording) {
+            console.log('[CalibrationScreen] Stopping video recording...');
             cameraRef.current.stopRecording();
             setIsRecording(false);
         }
     };
 
     const handleCalibration = async (videoUri) => {
+        console.log('[CalibrationScreen] ========== STARTING CALIBRATION ==========');
         setStep(STEPS.PROCESS);
         setLoading(true);
         setError(null);
 
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            setError('Пользователь не авторизован');
-            setLoading(false);
-            return;
-        }
-
-        // Create form data
-        const formData = new FormData();
-        formData.append('file', {
-            uri: videoUri,
-            type: 'video/mp4',
-            name: 'calibration.mp4',
-        });
-        formData.append('user_id', user.id);
-
         try {
-            const response = await fetch(`${API_URL}/calibrate_user`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('Пользователь не найден');
 
-            const data = await response.json();
-            setLoading(false);
+            // Use BioMechanicsEngine for "Genetic Analysis"
+            console.log('[CalibrationScreen] Running BioMechanicsEngine...');
+            const analysisResult = await BioMechanicsEngine.analyzeGenetics(videoUri);
 
-            if (data.status === 'success') {
-                // Save to Supabase user metadata
-                await supabase.auth.updateUser({
+            if (analysisResult.success) {
+                setResult(analysisResult);
+                
+                // Save results to Supabase profile
+                const { error: updateError } = await supabase.auth.updateUser({
                     data: {
                         calibrated: true,
-                        calibration_date: new Date().toISOString(),
-                        biomechanics: data.biomechanics,
-                        thresholds: data.thresholds,
-                        body_type: data.body_type,
-                        calibration_quality: data.quality_score
+                        body_type: analysisResult.body_type,
+                        biomechanics: analysisResult.biomechanics,
+                        calibration_date: new Date().toISOString()
                     }
                 });
 
-                setResult(data);
+                if (updateError) {
+                    console.error('Error saving profile:', updateError);
+                    // Continue anyway to show results
+                }
+
                 setStep(STEPS.SUCCESS);
             } else {
-                setError(data.message || 'Ошибка калибровки');
-                setStep(STEPS.CHECK);
+                throw new Error('Не удалось определить параметры тела');
             }
         } catch (err) {
-            console.error('Calibration error:', err);
+            console.error('[CalibrationScreen] Error:', err);
+            setError(err.message || 'Ошибка анализа');
+            setStep(STEPS.CHECK); // Go back to check step
+        } finally {
             setLoading(false);
-            setError('Не удалось подключиться к серверу');
-            setStep(STEPS.CHECK);
         }
     };
 
@@ -233,7 +228,7 @@ export default function CalibrationScreen() {
                 <CameraView
                     ref={cameraRef}
                     style={{ flex: 1 }}
-                    facing="back"
+                    facing={facing}
                     mode="video"
                 >
                     <SafeAreaView className="flex-1 justify-between p-6">
@@ -252,7 +247,13 @@ export default function CalibrationScreen() {
                                 </Text>
                             </View>
 
-                            <View className="w-10" />
+                            <TouchableOpacity
+                                onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}
+                                className="w-10 h-10 bg-black/40 rounded-full items-center justify-center"
+                                disabled={isRecording}
+                            >
+                                <RefreshCw color={isRecording ? "#888" : "white"} size={20} />
+                            </TouchableOpacity>
                         </View>
 
                         {/* Error Banner */}

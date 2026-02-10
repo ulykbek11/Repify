@@ -302,7 +302,7 @@ export default function EditProfileScreen() {
                             onChangeText={setCurrentPassword}
                             secureTextEntry={!showCurrentPassword}
                         />
-                        <TouchableOpacity onPress={() => setShowCurrentPassword(!showCurrentPassword)}>
+                        <TouchableOpacity onPress={() => setShowCurrentPassword(!showCurrentPassword)} className="p-2">
                             {showCurrentPassword ? (
                                 <EyeOff color="#8B8E98" size={20} />
                             ) : (
@@ -335,7 +335,7 @@ export default function EditProfileScreen() {
                             onChangeText={setNewPassword}
                             secureTextEntry={!showNewPassword}
                         />
-                        <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)}>
+                        <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} className="p-2">
                             {showNewPassword ? (
                                 <EyeOff color="#8B8E98" size={20} />
                             ) : (

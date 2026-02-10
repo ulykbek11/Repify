@@ -60,18 +60,28 @@ class CalibrationAnalyzer(BaseAnalyzer):
         shoulder_vis_diff = abs(left_shoulder.visibility - right_shoulder.visibility)
         hip_vis_diff = abs(left_hip.visibility - right_hip.visibility)
         
-        # Если оба плеча видны одинаково хорошо - камера спереди/сзади
-        if shoulder_vis_diff < 0.2 and left_shoulder.visibility > 0.7 and right_shoulder.visibility > 0.7:
-            return False, "Камера должна быть сбоку. Пожалуйста, поверните телефон."
+        # ДИАГНОСТИКА: логируем значения
+        print(f"📐 [CAMERA ANGLE CHECK]")
+        print(f"   L_Shoulder vis: {left_shoulder.visibility:.2f}, R_Shoulder vis: {right_shoulder.visibility:.2f}, Diff: {shoulder_vis_diff:.2f}")
+        print(f"   L_Hip vis: {left_hip.visibility:.2f}, R_Hip vis: {right_hip.visibility:.2f}, Diff: {hip_vis_diff:.2f}")
         
         # Расстояние между плечами (в нормализованных координатах)
         shoulder_distance = abs(left_shoulder.x - right_shoulder.x)
         hip_distance = abs(left_hip.x - right_hip.x)
         
+        print(f"   Shoulder distance: {shoulder_distance:.3f}, Hip distance: {hip_distance:.3f}")
+        
+        # Если оба плеча видны одинаково хорошо - камера спереди/сзади
+        if shoulder_vis_diff < 0.15 and left_shoulder.visibility > 0.7 and right_shoulder.visibility > 0.7:
+            print(f"   ❌ REJECTED: Both shoulders visible (front/back view)")
+            return False, "Камера должна быть сбоку. Пожалуйста, поверните телефон."
+        
         # При виде сбоку плечи/бедра перекрываются (маленькое расстояние)
         if shoulder_distance > 0.15 and hip_distance > 0.15:
+            print(f"   ❌ REJECTED: Large shoulder/hip distance (not side view)")
             return False, "Камера должна быть сбоку. Пожалуйста, поверните телефон."
-            
+        
+        print(f"   ✅ ACCEPTED: Side view detected")
         return True, "OK"
     
     def _capture_bottom_measurements(self, landmarks) -> Dict:
@@ -81,6 +91,9 @@ class CalibrationAnalyzer(BaseAnalyzer):
         # Выбираем более видимую сторону
         l_vis = landmarks[23].visibility
         r_vis = landmarks[24].visibility
+        
+        side_used = "LEFT" if l_vis > r_vis else "RIGHT"
+        print(f"📏 [CAPTURE MEASUREMENTS] Using {side_used} side (L_vis: {l_vis:.2f}, R_vis: {r_vis:.2f})")
         
         if l_vis > r_vis:
             shoulder = landmarks[11]
@@ -115,7 +128,7 @@ class CalibrationAnalyzer(BaseAnalyzer):
         # Наклон корпуса
         torso_lean = abs(shoulder.x - hip.x) / max(abs(shoulder.y - hip.y), 0.01)
         
-        return {
+        measurements = {
             "femur_len": femur_len,
             "tibia_len": tibia_len,
             "torso_len": torso_len,
@@ -124,6 +137,12 @@ class CalibrationAnalyzer(BaseAnalyzer):
             "knee_forward": knee_forward,
             "torso_lean": torso_lean
         }
+        
+        print(f"   Femur: {femur_len:.3f}, Tibia: {tibia_len:.3f}, Torso: {torso_len:.3f}")
+        print(f"   Heel lift: {heel_lift:.3f}, Knee angle: {knee_angle:.1f}°, Knee forward: {knee_forward:.3f}")
+        print(f"   Torso lean: {torso_lean:.3f}")
+        
+        return measurements
     
     def process_calibration_frame(self, frame) -> Dict[str, Any]:
         """
@@ -163,9 +182,12 @@ class CalibrationAnalyzer(BaseAnalyzer):
         
         knee_angle = self.calculate_angle(hip, knee, ankle)
         
+        print(f"🔄 [REP TRACKING] Stage: {self.stage}, Knee angle: {knee_angle:.1f}°, Rep: {self.rep_count}/{self.REQUIRED_REPS}")
+        
         # State machine для подсчета повторений
         if self.stage == "up":
             if knee_angle < self.DOWN_THRESHOLD:
+                print(f"   ⬇️ Transition to DOWN (angle {knee_angle:.1f}° < {self.DOWN_THRESHOLD}°)")
                 self.stage = "down"
                 self.min_angle_in_rep = knee_angle
                 self.bottom_frame_captured = False
@@ -177,28 +199,35 @@ class CalibrationAnalyzer(BaseAnalyzer):
                 
             # Захватываем измерения в самой нижней точке
             if not self.bottom_frame_captured and knee_angle < 95:
+                print(f"   📸 Capturing measurements at bottom (angle: {knee_angle:.1f}°)")
                 measurements = self._capture_bottom_measurements(landmarks)
                 self.measurements.append(measurements)
                 self.bottom_frame_captured = True
             
             # Подъем
             if knee_angle > self.UP_THRESHOLD:
+                print(f"   ⬆️ Transition to UP (angle {knee_angle:.1f}° > {self.UP_THRESHOLD}°)")
                 self.stage = "up"
                 self.rep_count += 1
+                print(f"   ✅ REP COUNTED! Total: {self.rep_count}/{self.REQUIRED_REPS}")
                 
                 # Если не захватили в нижней точке, захватываем сейчас
                 if not self.bottom_frame_captured:
+                    print(f"   ⚠️ Missed bottom capture, capturing now (min angle was {self.min_angle_in_rep:.1f}°)")
                     measurements = self._capture_bottom_measurements(landmarks)
                     self.measurements.append(measurements)
         
         # Проверка завершения
         if self.rep_count >= self.REQUIRED_REPS:
+            print(f"🎉 [CALIBRATION COMPLETE] All {self.REQUIRED_REPS} reps completed!")
+            biomechanics = self._calculate_final_biomechanics()
+            print(f"📊 [FINAL BIOMECHANICS] {biomechanics}")
             return {
                 "status": "complete",
                 "message": "Калибровка завершена!",
                 "reps": self.rep_count,
                 "required_reps": self.REQUIRED_REPS,
-                "biomechanics": self._calculate_final_biomechanics()
+                "biomechanics": biomechanics
             }
         
         return {
@@ -214,7 +243,11 @@ class CalibrationAnalyzer(BaseAnalyzer):
         """
         Рассчитывает финальные биомеханические параметры на основе всех измерений.
         """
+        print(f"\n🧮 [CALCULATING BIOMECHANICS]")
+        print(f"   Total measurements collected: {len(self.measurements)}")
+        
         if not self.measurements:
+            print(f"   ⚠️ No measurements collected! Using defaults.")
             return self._get_default_biomechanics()
         
         # Усредняем все измерения
@@ -223,10 +256,15 @@ class CalibrationAnalyzer(BaseAnalyzer):
         for key in keys:
             values = [m[key] for m in self.measurements if m.get(key) is not None]
             avg[key] = np.mean(values) if values else 0
+            print(f"   {key}: {avg[key]:.3f} (from {len(values)} samples)")
         
         # Рассчитываем соотношения
         femur_to_tibia = avg["femur_len"] / max(avg["tibia_len"], 0.01)
         torso_to_leg = avg["torso_len"] / max(avg["femur_len"] + avg["tibia_len"], 0.01)
+        
+        print(f"\n   📐 Ratios:")
+        print(f"      Femur/Tibia: {femur_to_tibia:.2f}")
+        print(f"      Torso/Leg: {torso_to_leg:.2f}")
         
         # Оценка подвижности (1-10)
         # Ankle mobility: меньше heel_lift = лучше
@@ -235,16 +273,23 @@ class CalibrationAnalyzer(BaseAnalyzer):
         # Hip mobility: меньше min_knee_angle = лучше
         hip_mobility = max(1, min(10, (120 - avg["min_knee_angle"]) / 5 + 5))
         
+        print(f"\n   💪 Mobility Scores:")
+        print(f"      Ankle: {ankle_mobility:.1f}/10")
+        print(f"      Hip: {hip_mobility:.1f}/10")
+        
         # Quality score (1-5)
         quality = min(5, len(self.measurements))
+        print(f"\n   ⭐ Quality Score: {quality}/5")
         
         # Генерация персональных порогов
         thresholds = self._generate_thresholds(femur_to_tibia, torso_to_leg, ankle_mobility)
+        print(f"\n   🎯 Generated Thresholds: {thresholds}")
         
         # Интерпретация
         body_type = self._interpret_body_type(femur_to_tibia, torso_to_leg)
+        print(f"\n   🧍 Body Type: {body_type}")
         
-        return {
+        result = {
             "biomechanics": {
                 "femur_to_tibia_ratio": round(femur_to_tibia, 2),
                 "torso_to_leg_ratio": round(torso_to_leg, 2),
@@ -255,6 +300,9 @@ class CalibrationAnalyzer(BaseAnalyzer):
             "quality_score": quality,
             "body_type": body_type
         }
+        
+        print(f"\n   ✅ Biomechanics calculation complete!\n")
+        return result
     
     def _generate_thresholds(self, femur_ratio: float, torso_ratio: float, ankle_mobility: float) -> Dict:
         """

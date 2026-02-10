@@ -33,7 +33,8 @@ def analyze_video(video_path):
     max_scores = {
         "math_shallow": 0.0,
         "math_heel": 0.0,
-        "math_lean": 0.0
+        "math_lean": 0.0,
+        "ai_conf": 0.0
     }
     
     detected_errors = set()
@@ -64,11 +65,13 @@ def analyze_video(video_path):
         math_shallow = math_details.get("shallow", 0.0)
         math_heel = math_details.get("heel", 0.0)
         math_lean = math_details.get("lean", 0.0)
+        ai_conf = adv_res.get("ai_confidence", 0.0)
         
         # Update max scores (global)
         max_scores["math_shallow"] = max(max_scores["math_shallow"], math_shallow)
         max_scores["math_heel"] = max(max_scores["math_heel"], math_heel)
         max_scores["math_lean"] = max(max_scores["math_lean"], math_lean)
+        max_scores["ai_conf"] = max(max_scores["ai_conf"], ai_conf)
         
         # Current errors
         current_errors = adv_res.get("errors", [])

@@ -173,6 +173,12 @@ class SquatAnalyzer(BaseAnalyzer):
         self.stable_up_frames = 0
         self.stable_down_frames = 0
         self.frames_in_down = 0
+        
+    def get_feedback(self):
+        """Return list of session errors for video analysis endpoint"""
+        if not self.session_errors:
+            return []
+        return list(self.session_errors)
 
     def _smooth_angle(self, angle):
         """Angle smoothing to prevent noise (Repo Logic)"""
@@ -261,22 +267,45 @@ class SquatAnalyzer(BaseAnalyzer):
         math_heel = self.advanced_analyzer.detect_heel_lift(landmarks, self.stage)
         math_lean = self.advanced_analyzer.detect_torso_lean(landmarks, self.stage)
         
-        # --- PRIORITIZED FUSION LOGIC ---
-        # RULE-BASED ONLY: Trust high-confidence math
+        # --- PRIORITIZED FUSION LOGIC (3-TIER SYSTEM) ---
+        # Priority 1: Math > 0.85 → ERROR MANDATORY (AI ignored)
+        # Priority 2: Math 0.5-0.85 → Weighted combination (0.4*Math + 0.6*AI > 0.65)
+        # Priority 3: Math < 0.5 → Ignored
         
         math_errors = []
         
-        # 1. Shallow Squat
-        if math_shallow > 0.65:
+        # Note: ml_analyzer may not exist, use safe defaults
+        ai_error_prob = 0.0
+        if hasattr(self, 'ml_analyzer') and self.ml_analyzer:
+            try:
+                ai_result = self.ml_analyzer.predict(landmarks)
+                ai_error_prob = ai_result.get('error_prob', 0.0)
+            except:
+                ai_error_prob = 0.0
+        
+        # 1. Shallow Squat (Prioritized Logic)
+        if math_shallow > 0.85:
             math_errors.append('shallow_squat')
+        elif math_shallow > 0.5:
+            combined = (math_shallow * 0.4) + (ai_error_prob * 0.6)
+            if combined > 0.65:
+                math_errors.append('shallow_squat')
 
-        # 2. Heel Lift
-        if math_heel > 0.65:
+        # 2. Heel Lift (Prioritized Logic)
+        if math_heel > 0.85:
             math_errors.append('heel_lift')
+        elif math_heel > 0.5:
+            combined = (math_heel * 0.4) + (ai_error_prob * 0.6)
+            if combined > 0.65:
+                math_errors.append('heel_lift')
             
-        # 3. Torso Lean
-        if math_lean > 0.65:
+        # 3. Torso Lean (Prioritized Logic)
+        if math_lean > 0.85:
             math_errors.append('torso_lean')
+        elif math_lean > 0.5:
+            combined = (math_lean * 0.4) + (ai_error_prob * 0.6)
+            if combined > 0.65:
+                math_errors.append('torso_lean')
 
         # Construct adv_res for compatibility
         adv_res = {
@@ -290,7 +319,8 @@ class SquatAnalyzer(BaseAnalyzer):
                 "shallow": math_shallow,
                 "heel": math_heel,
                 "lean": math_lean
-            }
+            },
+            "ai_confidence": ai_error_prob
         }
         
         # --- LAYER 1: ROBUST STATE MACHINE & COUNTER ---
@@ -437,6 +467,10 @@ class DeadliftAnalyzer(BaseAnalyzer):
         self.stable_up_frames = 0
         self.stable_down_frames = 0
         self.last_rep_time = 0
+        
+    def get_feedback(self):
+        """Return empty list for deadlift (no error tracking yet)"""
+        return []
 
     def analyze(self, results, frame=None):
         if not results.pose_landmarks:

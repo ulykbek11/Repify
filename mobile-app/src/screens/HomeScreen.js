@@ -1,11 +1,82 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { PlayCircle, Dumbbell, Target, ChevronRight, Activity } from 'lucide-react-native';
+import { PlayCircle, Dumbbell, Target, ChevronRight, Activity, X, AlertCircle } from 'lucide-react-native';
+import { supabase } from '../lib/supabase';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
+  const [showCalibrationBanner, setShowCalibrationBanner] = useState(false);
+  const [calibrationData, setCalibrationData] = useState(null);
+
+  useEffect(() => {
+    checkCalibrationStatus();
+
+    // Re-check calibration status when user returns to this screen
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkCalibrationStatus();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const checkCalibrationStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const metadata = user.user_metadata || {};
+        const calibrated = metadata.calibrated;
+        const reminderCount = metadata.calibration_reminder_count || 0;
+
+        console.log('[HomeScreen] Calibration check:', {
+          calibrated,
+          reminderCount,
+          hasMetadata: !!metadata,
+          metadata
+        });
+
+        // IMPORTANT: Show banner ONLY if calibrated === false (user skipped or not completed)
+        // If calibrated === true, user completed calibration successfully
+        // If calibrated field doesn't exist, it's a new user who hasn't seen calibration screen yet
+        if (calibrated === false && reminderCount < 3) {
+          console.log('[HomeScreen] Showing calibration banner');
+          setShowCalibrationBanner(true);
+          setCalibrationData({ reminderCount });
+        } else {
+          console.log('[HomeScreen] Hiding calibration banner', {
+            reason: calibrated === true ? 'completed' : calibrated === undefined ? 'new user' : 'dismissed too many times'
+          });
+          setShowCalibrationBanner(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking calibration status:', error);
+    }
+  };
+
+  const dismissCalibrationBanner = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const currentCount = user.user_metadata?.calibration_reminder_count || 0;
+        await supabase.auth.updateUser({
+          data: {
+            calibration_reminder_count: currentCount + 1
+          }
+        });
+      }
+      setShowCalibrationBanner(false);
+    } catch (error) {
+      console.error('Error dismissing banner:', error);
+      setShowCalibrationBanner(false);
+    }
+  };
+
+  const goToCalibration = () => {
+    setShowCalibrationBanner(false);
+    navigation.navigate('Calibration');
+  };
 
   const exercises = [
     {
@@ -33,8 +104,8 @@ export default function HomeScreen() {
         <View className="flex-row items-center justify-between px-6 py-4">
           <View className="flex-row items-center space-x-2">
             <View className="w-10 h-10 items-center justify-center">
-              <Image 
-                source={require('../../assets/logo.png')} 
+              <Image
+                source={require('../../assets/logo.png')}
                 className="w-full h-full rounded-xl"
                 resizeMode="contain"
               />
@@ -49,24 +120,52 @@ export default function HomeScreen() {
         {/* Hero Section */}
         <View className="px-6 mt-4 mb-8">
           <View className="bg-primary rounded-3xl p-6 overflow-hidden relative shadow-lg shadow-primary/30">
-             <View className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10" />
-             <View className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full -ml-10 -mb-10" />
-             
-             <Text className="text-white/80 font-semibold mb-1 uppercase tracking-widest text-xs">Твой AI Тренер</Text>
-             <Text className="text-white text-3xl font-bold leading-8 mb-4">
-               Идеальная техника{'\n'}в каждом повторе
-             </Text>
-             <TouchableOpacity className="bg-white px-5 py-3 rounded-xl self-start">
-               <Text className="text-primary font-bold">Начать тренировку</Text>
-             </TouchableOpacity>
+            <View className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10" />
+            <View className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full -ml-10 -mb-10" />
+
+            <Text className="text-white/80 font-semibold mb-1 uppercase tracking-widest text-xs">Твой AI Тренер</Text>
+            <Text className="text-white text-3xl font-bold leading-8 mb-4">
+              Идеальная техника{'\n'}в каждом повторе
+            </Text>
+            <TouchableOpacity className="bg-white px-5 py-3 rounded-xl self-start">
+              <Text className="text-primary font-bold">Начать тренировку</Text>
+            </TouchableOpacity>
           </View>
         </View>
+
+        {/* Calibration Reminder Banner */}
+        {showCalibrationBanner && (
+          <View className="px-6 mb-6">
+            <View className="bg-primary/10 border border-primary rounded-2xl p-4">
+              <View className="flex-row items-start justify-between mb-2">
+                <View className="flex-row items-center flex-1">
+                  <AlertCircle color="#FF6B00" size={24} />
+                  <Text className="text-white font-bold text-base ml-3 flex-1">
+                    Пройдите калибровку
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={dismissCalibrationBanner} className="p-1">
+                  <X color="#8B8E98" size={20} />
+                </TouchableOpacity>
+              </View>
+              <Text className="text-muted text-sm mb-4">
+                Калибровка поможет нам точнее оценивать вашу технику, учитывая ваши индивидуальные пропорции.
+              </Text>
+              <TouchableOpacity
+                onPress={goToCalibration}
+                className="bg-primary py-3 rounded-xl items-center"
+              >
+                <Text className="text-white font-bold">Начать калибровку</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Categories Chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-6 mb-8 max-h-10">
           {['Все', 'Силовые', 'Кардио', 'Растяжка'].map((cat, i) => (
-            <TouchableOpacity 
-              key={cat} 
+            <TouchableOpacity
+              key={cat}
               className={`mr-3 px-5 py-2 rounded-full border ${i === 0 ? 'bg-card border-primary' : 'bg-transparent border-white/10'}`}
             >
               <Text className={`${i === 0 ? 'text-primary font-bold' : 'text-muted'}`}>{cat}</Text>
@@ -85,8 +184,8 @@ export default function HomeScreen() {
                 className="bg-card rounded-2xl overflow-hidden border border-white/5 shadow-sm active:scale-95 transition-all"
               >
                 <View className="h-40 w-full relative bg-gray-800">
-                  <Image 
-                    source={{ uri: exercise.image }} 
+                  <Image
+                    source={{ uri: exercise.image }}
                     className="w-full h-full opacity-60"
                     resizeMode="cover"
                   />
@@ -98,7 +197,7 @@ export default function HomeScreen() {
                     <Text className="text-white font-bold text-xs">Начать</Text>
                   </View>
                 </View>
-                
+
                 <View className="p-4">
                   <View className="flex-row justify-between items-start mb-1">
                     <Text className="text-white text-lg font-bold">{exercise.title}</Text>

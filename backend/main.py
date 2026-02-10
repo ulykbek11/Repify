@@ -139,29 +139,54 @@ async def calibrate_user_endpoint(
     Калибровка пользователя: анализ 5 приседаний для определения
     анатомических пропорций и генерации персональных порогов.
     """
-    print(f"📐 Calibration request for user: {user_id}")
+    print(f"\n{'='*60}")
+    print(f"📐 [CALIBRATION REQUEST] User ID: {user_id}")
+    print(f"   Filename: {file.filename}")
+    print(f"   Content-Type: {file.content_type}")
+    print(f"{'='*60}\n")
     
     # Save temp file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
     
-    print(f"💾 Saved calibration video to: {tmp_path}")
+    # Check file size
+    file_size = os.path.getsize(tmp_path)
+    print(f"💾 [FILE SAVED] Path: {tmp_path}, Size: {file_size / 1024:.2f} KB")
+    
+    if file_size == 0:
+        print(f"❌ [ERROR] Video file is empty!")
+        return {
+            "status": "error",
+            "error_type": "validation",
+            "message": "Видео файл пустой. Пожалуйста, запишите видео заново."
+        }
     
     try:
+        print(f"\n🔍 [STARTING ANALYSIS] Initializing CalibrationAnalyzer...")
         analyzer = CalibrationAnalyzer()
+        
+        print(f"📹 [ANALYZING VIDEO] Processing {tmp_path}...")
         result = analyzer.analyze_video(tmp_path)
         
-        print(f"✅ Calibration complete for {user_id}: {result}")
+        print(f"\n{'='*60}")
+        print(f"✅ [SUCCESS] Calibration complete for user {user_id}")
+        print(f"   Results: {result}")
+        print(f"{'='*60}\n")
         
-        return {
+        response = {
             "status": "success",
             "user_id": user_id,
             **result
         }
         
+        print(f"📤 [SENDING RESPONSE] {response}")
+        return response
+        
     except ValidationError as e:
-        print(f"⚠️ Calibration validation error: {str(e)}")
+        print(f"\n{'='*60}")
+        print(f"⚠️ [VALIDATION ERROR] {str(e)}")
+        print(f"{'='*60}\n")
         return {
             "status": "error",
             "error_type": "validation",
@@ -169,7 +194,12 @@ async def calibrate_user_endpoint(
         }
         
     except Exception as e:
-        print(f"❌ Calibration error: {str(e)}")
+        print(f"\n{'='*60}")
+        print(f"❌ [INTERNAL ERROR] {str(e)}")
+        import traceback
+        print(f"   Traceback:")
+        traceback.print_exc()
+        print(f"{'='*60}\n")
         return {
             "status": "error",
             "error_type": "internal",
@@ -178,6 +208,7 @@ async def calibrate_user_endpoint(
         
     finally:
         if os.path.exists(tmp_path):
+            print(f"🗑️ [CLEANUP] Deleting temp file: {tmp_path}")
             os.unlink(tmp_path)
 
 
