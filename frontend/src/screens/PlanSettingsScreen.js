@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft, RefreshCw } from 'lucide-react-native';
@@ -25,31 +25,31 @@ export default function PlanSettingsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-row items-center px-6 py-4 border-b border-white/5">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 -ml-2 mr-2">
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <ChevronLeft color="white" size={24} />
         </TouchableOpacity>
-        <Text className="text-white text-xl font-bold">Настройки плана</Text>
+        <Text style={styles.headerTitle}>Настройки плана</Text>
       </View>
 
-      <ScrollView className="flex-1 px-6 py-6">
+      <ScrollView style={styles.content} contentContainerStyle={{paddingBottom: 24}}>
         {/* Goal Section */}
-        <View className="bg-surface rounded-2xl p-4 mb-6 border border-white/5">
-            <Text className="text-white font-bold mb-2">Текущая цель</Text>
-            <View className="flex-row justify-between items-center">
-                <Text className="text-primary text-xl font-bold">Набор массы</Text>
+        <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Текущая цель</Text>
+            <View style={styles.rowBetween}>
+                <Text style={styles.goalText}>Набор массы</Text>
                 <TouchableOpacity>
-                    <Text className="text-primary font-semibold">Изменить</Text>
+                    <Text style={styles.changeText}>Изменить</Text>
                 </TouchableOpacity>
             </View>
         </View>
 
         {/* Frequency Section */}
-        <View className="mb-8">
-            <Text className="text-white font-bold mb-4">Тренировок в неделю</Text>
-            <View className="bg-surface rounded-2xl p-6 border border-white/5">
-                <Text className="text-white text-center text-3xl font-bold mb-4">{frequency} дня</Text>
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Тренировок в неделю</Text>
+            <View style={styles.sliderCard}>
+                <Text style={styles.sliderValue}>{frequency} дня</Text>
                 <Slider
                     style={{width: '100%', height: 40}}
                     minimumValue={2}
@@ -61,33 +61,39 @@ export default function PlanSettingsScreen() {
                     maximumTrackTintColor="#2A2F3E"
                     thumbTintColor="#FF6B00"
                 />
-                <View className="flex-row justify-between px-2 mt-2">
-                    <Text className="text-muted text-xs">2</Text>
-                    <Text className="text-muted text-xs">6</Text>
+                <View style={styles.sliderLabels}>
+                    <Text style={styles.mutedText}>2</Text>
+                    <Text style={styles.mutedText}>6</Text>
                 </View>
             </View>
         </View>
 
         {/* Duration Section */}
-        <View className="mb-8">
-            <Text className="text-white font-bold mb-4">Длительность тренировки</Text>
-            <View className="flex-row space-x-3">
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Длительность тренировки</Text>
+            <View style={styles.durationRow}>
                 {['30-45', '45-60', '60-90'].map((time) => (
                     <TouchableOpacity
                         key={time}
                         onPress={() => setDuration(time)}
-                        className={`flex-1 py-3 rounded-xl items-center justify-center border ${duration === time ? 'bg-primary border-primary' : 'bg-surface border-white/5'}`}
+                        style={[
+                            styles.durationButton,
+                            duration === time ? styles.durationButtonActive : styles.durationButtonInactive
+                        ]}
                     >
-                        <Text className={`font-bold ${duration === time ? 'text-white' : 'text-muted'}`}>{time} мин</Text>
+                        <Text style={[
+                            styles.durationText,
+                            duration === time ? styles.textActive : styles.textInactive
+                        ]}>{time} мин</Text>
                     </TouchableOpacity>
                 ))}
             </View>
         </View>
 
         {/* Equipment Section */}
-        <View className="mb-8">
-            <Text className="text-white font-bold mb-4">Доступное оборудование</Text>
-            <View className="space-y-3">
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Доступное оборудование</Text>
+            <View style={styles.equipmentList}>
                 {[
                     { key: 'barbell', label: 'Штанга' },
                     { key: 'dumbbell', label: 'Гантели' },
@@ -98,32 +104,232 @@ export default function PlanSettingsScreen() {
                     <TouchableOpacity 
                         key={item.key}
                         onPress={() => toggleEquipment(item.key)}
-                        className={`bg-surface p-4 rounded-xl flex-row justify-between items-center border ${equipment[item.key] ? 'border-primary/50' : 'border-white/5'}`}
+                        style={[
+                            styles.equipmentItem,
+                            equipment[item.key] ? styles.equipmentItemActive : styles.equipmentItemInactive
+                        ]}
                     >
-                        <Text className={`text-base ${equipment[item.key] ? 'text-white font-semibold' : 'text-muted'}`}>{item.label}</Text>
-                        <View className={`w-6 h-6 rounded-md border items-center justify-center ${equipment[item.key] ? 'bg-primary border-primary' : 'border-white/20'}`}>
-                            {equipment[item.key] && <View className="w-2 h-2 bg-white rounded-sm" />}
+                        <Text style={[
+                            styles.equipmentText,
+                            equipment[item.key] ? styles.textActive : styles.textInactive
+                        ]}>{item.label}</Text>
+                        <View style={[
+                            styles.checkbox,
+                            equipment[item.key] ? styles.checkboxActive : styles.checkboxInactive
+                        ]}>
+                            {equipment[item.key] && <View style={styles.checkboxInner} />}
                         </View>
                     </TouchableOpacity>
                 ))}
             </View>
         </View>
-        <View className="h-20" />
+        <View style={{height: 80}} />
       </ScrollView>
 
       {/* Bottom Action */}
-      <View className="absolute bottom-0 left-0 right-0 bg-background p-4 border-t border-white/5">
+      <View style={styles.footer}>
         <TouchableOpacity 
-            className="w-full bg-primary h-14 rounded-2xl items-center justify-center shadow-lg shadow-primary/30 flex-row space-x-2"
+            style={styles.refreshButton}
             onPress={() => {
                 navigation.replace('PlanGenerationLoading'); // Simulate regeneration
             }}
         >
-            <RefreshCw color="white" size={20} />
-            <Text className="text-white font-bold text-lg">Пересоздать план</Text>
+            <RefreshCw color="white" size={20} style={{marginRight: 8}} />
+            <Text style={styles.refreshButtonText}>Пересоздать план</Text>
         </TouchableOpacity>
-        <Text className="text-muted text-xs text-center mt-2">AI пересоздаст программу за 5 сек</Text>
+        <Text style={styles.footerNote}>AI пересоздаст программу за 5 сек</Text>
       </View>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0E1A',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+    marginRight: 8,
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+  card: {
+    backgroundColor: '#1A1F2E',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  sectionTitle: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 8, // mb-2
+    fontSize: 16,
+  },
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  goalText: {
+    color: '#FF6B00',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  changeText: {
+    color: '#FF6B00',
+    fontWeight: '600',
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sliderCard: {
+    backgroundColor: '#1A1F2E',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  sliderValue: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 30,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  sliderLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    marginTop: 8,
+  },
+  mutedText: {
+    color: '#8B8E98',
+    fontSize: 12,
+  },
+  durationRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  durationButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  durationButtonActive: {
+    backgroundColor: '#FF6B00',
+    borderColor: '#FF6B00',
+  },
+  durationButtonInactive: {
+    backgroundColor: '#1A1F2E',
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  durationText: {
+    fontWeight: 'bold',
+  },
+  textActive: {
+    color: 'white',
+  },
+  textInactive: {
+    color: '#8B8E98',
+  },
+  equipmentList: {
+    gap: 12,
+  },
+  equipmentItem: {
+    backgroundColor: '#1A1F2E',
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  equipmentItemActive: {
+    borderColor: 'rgba(255,107,0,0.5)',
+  },
+  equipmentItemInactive: {
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  equipmentText: {
+    fontSize: 16,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: '#FF6B00',
+    borderColor: '#FF6B00',
+  },
+  checkboxInactive: {
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  checkboxInner: {
+    width: 8,
+    height: 8,
+    backgroundColor: 'white',
+    borderRadius: 2,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#0A0E1A',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  refreshButton: {
+    width: '100%',
+    backgroundColor: '#FF6B00',
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+    marginBottom: 8,
+  },
+  refreshButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  footerNote: {
+    color: '#8B8E98',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+});

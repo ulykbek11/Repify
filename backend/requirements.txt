@@ -1,6 +1,32 @@
+# Framework
 fastapi==0.104.1
-uvicorn==0.24.0
+uvicorn[standard]==0.24.0
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.13.0
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+
+# Validation & Settings
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Math & Science
+numpy==1.26.2
+
+# HTTP
+httpx==0.25.2
+
+# Environment
+python-dotenv==1.0.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.23.2
+
+# Logging
+loguru==0.7.2
+
+# CORS
 python-multipart==0.0.6
-opencv-python==4.8.1.78
-mediapipe==0.10.8
-numpy==1.24.3

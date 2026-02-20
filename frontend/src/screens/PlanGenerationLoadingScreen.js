@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,18 +39,18 @@ export default function PlanGenerationLoadingScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-background items-center justify-center">
-      <View className="items-center w-full px-8">
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
         {/* Вместо Lottie пока используем иконку с пульсацией или просто статичную */}
-        <View className="mb-8 w-32 h-32 items-center justify-center bg-primary/10 rounded-full border border-primary/20">
+        <View style={styles.iconContainer}>
             <Activity size={64} color="#FF6B00" />
         </View>
 
-        <Text className="text-white text-2xl font-bold mb-2 text-center">Создаём твою программу...</Text>
-        <Text className="text-muted text-base mb-12 text-center">{loadingText}</Text>
+        <Text style={styles.title}>Создаём твою программу...</Text>
+        <Text style={styles.subtitle}>{loadingText}</Text>
 
         {/* Custom Progress Bar */}
-        <View className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+        <View style={styles.progressContainer}>
             <LinearGradient
                 colors={['#FF6B00', '#FF3B5C']}
                 start={{ x: 0, y: 0 }}
@@ -62,3 +62,48 @@ export default function PlanGenerationLoadingScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0E1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 32,
+  },
+  iconContainer: {
+    marginBottom: 32,
+    width: 128,
+    height: 128,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,107,0,0.1)',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,0,0.2)',
+  },
+  title: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    color: '#8B8E98',
+    fontSize: 16,
+    marginBottom: 48,
+    textAlign: 'center',
+  },
+  progressContainer: {
+    width: '100%',
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+});

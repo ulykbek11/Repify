@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Check, X, Info, AlertTriangle } from 'lucide-react-native';
 
 /**
@@ -32,10 +32,10 @@ export const CustomAlert = ({
 
   const getBgColor = () => {
      switch(type) {
-      case 'success': return 'bg-green-500/10';
-      case 'error': return 'bg-red-500/10';
-      case 'warning': return 'bg-yellow-500/10';
-      default: return 'bg-blue-500/10';
+      case 'success': return 'rgba(34, 197, 94, 0.1)';
+      case 'error': return 'rgba(239, 68, 68, 0.1)';
+      case 'warning': return 'rgba(245, 158, 11, 0.1)';
+      default: return 'rgba(59, 130, 246, 0.1)';
     }
   };
 
@@ -46,28 +46,90 @@ export const CustomAlert = ({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-black/60 items-center justify-center px-6">
-        <View className="bg-[#1A1F2E] w-full rounded-3xl p-6 border border-white/10 items-center shadow-2xl">
-          <View className={`w-16 h-16 rounded-full items-center justify-center mb-4 ${getBgColor()}`}>
+      <View style={styles.overlay}>
+        <View style={styles.alertBox}>
+          <View style={[styles.iconContainer, { backgroundColor: getBgColor() }]}>
             {getIcon()}
           </View>
           
-          <Text className="text-white text-xl font-bold text-center mb-2">
+          <Text style={styles.title}>
             {title}
           </Text>
           
-          <Text className="text-white/60 text-center text-base mb-6 leading-6">
+          <Text style={styles.message}>
             {message}
           </Text>
 
           <TouchableOpacity 
             onPress={onClose}
-            className="w-full bg-primary h-12 rounded-xl items-center justify-center"
+            style={styles.button}
           >
-            <Text className="text-white font-bold text-base">{buttonText}</Text>
+            <Text style={styles.buttonText}>{buttonText}</Text>
           </TouchableOpacity>
         </View>
       </View>
     </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  alertBox: {
+    backgroundColor: '#1A1F2E',
+    width: '100%',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  message: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
+    fontSize: 16,
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  button: {
+    width: '100%',
+    backgroundColor: '#FF6B00',
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+});

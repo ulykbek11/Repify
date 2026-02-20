@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,7 +34,7 @@ export default function FullPlanScreen() {
 
     if (loading) {
         return (
-            <SafeAreaView className="flex-1 bg-background items-center justify-center">
+            <SafeAreaView style={styles.loadingContainer}>
                 <ActivityIndicator color="#FF6B00" />
             </SafeAreaView>
         );
@@ -50,49 +50,49 @@ export default function FullPlanScreen() {
     const schedule = plan?.schedule || [];
 
     return (
-        <SafeAreaView className="flex-1 bg-background">
+        <SafeAreaView style={styles.container}>
             {/* Header */}
-            <View className="flex-row items-center justify-between px-6 py-4 border-b border-white/5 bg-background z-10">
-                <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 -ml-2">
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButtonLeft}>
                     <ChevronLeft color="white" size={24} />
                 </TouchableOpacity>
-                <Text className="text-white text-lg font-bold">Программа тренировок</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('PlanSettings')} className="p-2 -mr-2">
+                <Text style={styles.headerTitle}>Программа тренировок</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('PlanSettings')} style={styles.headerButtonRight}>
                     <Settings color="white" size={24} />
                 </TouchableOpacity>
             </View>
 
-            <ScrollView className="flex-1 px-4 pt-4">
+            <ScrollView style={styles.scrollContent}>
                 {/* Summary Card */}
                 <LinearGradient
                     colors={['#FF6B00', '#FF3B5C']}
-                    className="p-6 rounded-3xl mb-6"
+                    style={styles.summaryCard}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                 >
-                    <Text className="text-white text-2xl font-bold mb-1">12-недельная программа</Text>
-                    <Text className="text-white/80 text-base mb-4">{currentGoal}</Text>
+                    <Text style={styles.summaryTitle}>12-недельная программа</Text>
+                    <Text style={styles.summarySubtitle}>{currentGoal}</Text>
 
-                    <View className="flex-row justify-between items-center mb-2">
-                        <Text className="text-white text-sm font-semibold">Неделя 1 из 12</Text>
-                        <Text className="text-white text-sm font-semibold">0%</Text>
+                    <View style={styles.progressHeader}>
+                        <Text style={styles.progressText}>Неделя 1 из 12</Text>
+                        <Text style={styles.progressText}>0%</Text>
                     </View>
-                    <View className="w-full h-2 bg-black/20 rounded-full overflow-hidden">
-                        <View className="h-full w-[0%] bg-white rounded-full" />
+                    <View style={styles.progressBarBg}>
+                        <View style={styles.progressBarFill} />
                     </View>
                 </LinearGradient>
 
                 {/* Weeks Accordion */}
-                <View className="pb-10">
+                <View style={styles.weeksContainer}>
                     {weeks.map((week) => (
-                        <View key={week} className="bg-surface rounded-2xl mb-3 overflow-hidden border border-white/5">
+                        <View key={week} style={styles.weekCard}>
                             <TouchableOpacity
-                                className="p-4 flex-row items-center justify-between"
+                                style={styles.weekHeader}
                                 onPress={() => setExpandedWeek(expandedWeek === week ? null : week)}
                             >
                                 <View>
-                                    <Text className="text-white text-lg font-bold">Неделя {week}</Text>
-                                    <Text className="text-muted text-sm">{schedule.length} тренировки</Text>
+                                    <Text style={styles.weekTitle}>Неделя {week}</Text>
+                                    <Text style={styles.weekSubtitle}>{schedule.length} тренировки</Text>
                                 </View>
                                 {expandedWeek === week ? (
                                     <ChevronUp color="#8B8E98" size={20} />
@@ -102,35 +102,35 @@ export default function FullPlanScreen() {
                             </TouchableOpacity>
 
                             {expandedWeek === week && (
-                                <View className="px-4 pb-4 space-y-3">
+                                <View style={styles.weekContent}>
                                     {schedule.length > 0 ? (
                                         schedule.map((day, index) => (
-                                            <View key={index} className="bg-[#2A2F3E] rounded-xl p-3">
-                                                <View className="flex-row justify-between items-start mb-2">
+                                            <View key={index} style={styles.dayCard}>
+                                                <View style={styles.dayHeader}>
                                                     <View>
-                                                        <Text className="text-white font-semibold mb-1">{day.day}</Text>
-                                                        <Text className="text-muted text-xs">{day.exercises.length} упражнений • {day.sets} подхода • {day.reps}</Text>
+                                                        <Text style={styles.dayTitle}>{day.day}</Text>
+                                                        <Text style={styles.daySubtitle}>{day.exercises.length} упражнений • {day.sets} подхода • {day.reps}</Text>
                                                     </View>
-                                                    <View className={`px-2 py-1 rounded-full bg-white/5`}>
-                                                        <Text className={`text-[10px] font-bold text-muted`}>
+                                                    <View style={styles.statusBadge}>
+                                                        <Text style={styles.statusText}>
                                                             Не начато
                                                         </Text>
                                                     </View>
                                                 </View>
 
                                                 <TouchableOpacity
-                                                    className="bg-primary h-10 rounded-lg flex-row items-center justify-center space-x-2 mt-2"
+                                                    style={styles.startButton}
                                                     onPress={() => navigation.navigate('WorkoutDay', { day })}
                                                 >
                                                     <PlayCircle color="white" size={16} fill="white" />
-                                                    <Text className="text-white font-bold text-sm">
+                                                    <Text style={styles.startButtonText}>
                                                         Начать
                                                     </Text>
                                                 </TouchableOpacity>
                                             </View>
                                         ))
                                     ) : (
-                                        <Text className="text-muted text-center py-4">План не найден. Пройдите опрос в настройках.</Text>
+                                        <Text style={styles.emptyText}>План не найден. Пройдите опрос в настройках.</Text>
                                     )}
                                 </View>
                             )}
@@ -141,3 +141,167 @@ export default function FullPlanScreen() {
         </SafeAreaView>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#0A0E1A',
+    },
+    loadingContainer: {
+        flex: 1,
+        backgroundColor: '#0A0E1A',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: '#0A0E1A',
+        zIndex: 10,
+    },
+    headerButtonLeft: {
+        padding: 8,
+        marginLeft: -8,
+    },
+    headerTitle: {
+        color: 'white',
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    headerButtonRight: {
+        padding: 8,
+        marginRight: -8,
+    },
+    scrollContent: {
+        flex: 1,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+    },
+    summaryCard: {
+        padding: 24,
+        borderRadius: 24,
+        marginBottom: 24,
+    },
+    summaryTitle: {
+        color: 'white',
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 4,
+    },
+    summarySubtitle: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 16,
+        marginBottom: 16,
+    },
+    progressHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    progressText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    progressBarBg: {
+        width: '100%',
+        height: 8,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 999,
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        height: '100%',
+        width: '0%',
+        backgroundColor: 'white',
+        borderRadius: 999,
+    },
+    weeksContainer: {
+        paddingBottom: 40,
+    },
+    weekCard: {
+        backgroundColor: '#1A1F2E',
+        borderRadius: 16,
+        marginBottom: 12,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    weekHeader: {
+        padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    weekTitle: {
+        color: 'white',
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    weekSubtitle: {
+        color: '#9CA3AF',
+        fontSize: 14,
+    },
+    weekContent: {
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        gap: 12,
+    },
+    dayCard: {
+        backgroundColor: '#2A2F3E',
+        borderRadius: 12,
+        padding: 12,
+    },
+    dayHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 8,
+    },
+    dayTitle: {
+        color: 'white',
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    daySubtitle: {
+        color: '#9CA3AF',
+        fontSize: 12,
+    },
+    statusBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+    },
+    statusText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        color: '#9CA3AF',
+    },
+    startButton: {
+        backgroundColor: '#FF6B00',
+        height: 40,
+        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 8,
+        gap: 8,
+    },
+    startButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 14,
+    },
+    emptyText: {
+        color: '#9CA3AF',
+        textAlign: 'center',
+        paddingVertical: 16,
+    },
+});

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ArrowLeft, Video, StopCircle, RefreshCw } from 'lucide-react-native';
@@ -17,10 +17,24 @@ export default function ExerciseScreen() {
   const cameraRef = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const { exercise } = route.params;
 
   const startRecording = async () => {
+    if (isRecording) {
+      return;
+    }
     if (cameraRef.current) {
+      if (!permission?.granted) {
+        await requestPermission();
+        Alert.alert('Нет доступа', 'Нужно разрешение камеры');
+        return;
+      }
+      if (!micPermission?.granted) {
+        await requestMicPermission();
+        Alert.alert('Нет доступа', 'Нужно разрешение микрофона');
+        return;
+      }
       setIsRecording(true);
       try {
         const video = await cameraRef.current.recordAsync({
@@ -32,6 +46,7 @@ export default function ExerciseScreen() {
         }
       } catch (error) {
         console.error(error);
+        Alert.alert('Ошибка записи', error?.message || 'Ошибка записи видео');
         setIsRecording(false);
       }
     }
@@ -71,63 +86,76 @@ export default function ExerciseScreen() {
   };
 
   if (!permission) {
-    return <View className="flex-1 bg-background" />;
+    return <View style={styles.container} />;
   }
 
   if (!permission.granted) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center px-6">
-        <Text className="text-white text-center text-lg mb-4">No access to camera</Text>
-        <TouchableOpacity onPress={requestPermission} className="bg-primary px-8 py-4 rounded-full shadow-glow">
-          <Text className="text-white font-bold text-lg">Разрешить доступ</Text>
+      <SafeAreaView style={[styles.container, styles.centerContainer]}>
+        <Text style={styles.errorText}>No access to camera</Text>
+        <TouchableOpacity onPress={requestPermission} style={styles.permissionButton}>
+          <Text style={styles.permissionButtonText}>Разрешить доступ</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+  if (micPermission && !micPermission.granted) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centerContainer]}>
+        <Text style={styles.errorText}>Нет доступа к микрофону</Text>
+        <TouchableOpacity onPress={requestMicPermission} style={styles.permissionButton}>
+          <Text style={styles.permissionButtonText}>Разрешить доступ</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={styles.container}>
       <CameraView
         ref={cameraRef}
         style={{ flex: 1 }}
         facing={facing}
         mode="video"
       >
-        <SafeAreaView className="flex-1 justify-between p-6">
-          <View className="flex-row items-center justify-between">
+        <SafeAreaView style={styles.cameraOverlay}>
+          <View style={styles.header}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
-              className="w-10 h-10 bg-black/40 rounded-full items-center justify-center backdrop-blur-md"
+              style={styles.iconButton}
             >
               <ArrowLeft color="white" size={24} />
             </TouchableOpacity>
-            <View className="bg-black/40 px-4 py-2 rounded-full backdrop-blur-md">
-              <Text className="text-white font-bold capitalize">{exercise}</Text>
+            <View style={styles.titleContainer}>
+              <Text style={styles.titleText}>{typeof exercise === 'string' ? exercise : exercise.title}</Text>
             </View>
             <TouchableOpacity
               onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}
-              className="w-10 h-10 bg-black/40 rounded-full items-center justify-center backdrop-blur-md"
+              style={styles.iconButton}
               disabled={isRecording}
             >
               <RefreshCw color={isRecording ? "#888" : "white"} size={20} />
             </TouchableOpacity>
           </View>
 
-          <View className="items-center mb-8">
+          <View style={styles.controlsContainer}>
             {loading ? (
-              <View className="bg-black/60 p-6 rounded-2xl items-center backdrop-blur-md">
+              <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#FF6B00" />
-                <Text className="text-white font-bold mt-4">Анализируем технику...</Text>
+                <Text style={styles.loadingText}>Анализируем технику...</Text>
               </View>
             ) : (
               <TouchableOpacity
                 onPress={isRecording ? stopRecording : startRecording}
-                className={`w-20 h-20 rounded-full items-center justify-center border-4 ${isRecording ? 'bg-red-500 border-red-200' : 'bg-white border-gray-200'}`}
+                style={[
+                  styles.recordButton,
+                  isRecording ? styles.recordButtonActive : styles.recordButtonInactive
+                ]}
               >
                 {isRecording ? (
-                  <View className="w-8 h-8 bg-white rounded-md" />
+                  <View style={styles.stopIcon} />
                 ) : (
-                  <View className="w-16 h-16 bg-primary rounded-full items-center justify-center border-2 border-white">
+                  <View style={styles.startIcon}>
                     <Video color="white" size={32} fill="white" />
                   </View>
                 )}
@@ -139,3 +167,113 @@ export default function ExerciseScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0E1A',
+  },
+  centerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  errorText: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 18,
+    marginBottom: 16,
+  },
+  permissionButton: {
+    backgroundColor: '#FF6B00',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 9999,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  permissionButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  cameraOverlay: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleContainer: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  titleText: {
+    color: 'white',
+    fontWeight: 'bold',
+    textTransform: 'capitalize',
+  },
+  controlsContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  loadingContainer: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginTop: 16,
+  },
+  recordButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+  },
+  recordButtonActive: {
+    backgroundColor: '#EF4444',
+    borderColor: '#FECACA',
+  },
+  recordButtonInactive: {
+    backgroundColor: 'white',
+    borderColor: '#E5E7EB',
+  },
+  stopIcon: {
+    width: 32,
+    height: 32,
+    backgroundColor: 'white',
+    borderRadius: 6,
+  },
+  startIcon: {
+    width: 64,
+    height: 64,
+    backgroundColor: '#FF6B00',
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+});

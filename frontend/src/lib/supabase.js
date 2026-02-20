@@ -8,7 +8,7 @@ const SUPABASE_URL = 'https://uqczsmxijmmyrqbkjigi.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxY3pzbXhpam1teXJxYmtqaWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODM3NjEsImV4cCI6MjA4NTM1OTc2MX0.7S7MpeYy3qvRXZDRQq6Eo6rWEVYy2qlPukkzRGwz4nM';
 
 // 🔥 DEV MODE: Set to true to bypass Supabase authentication for testing
-export const DEV_MODE = true;
+export const DEV_MODE = false;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

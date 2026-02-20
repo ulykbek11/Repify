@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Linking from 'expo-linking';
 import { useNavigation } from '@react-navigation/native';
 import { supabase, DEV_MODE } from '../lib/supabase';
 import { Lock, Mail, User, ArrowLeft, Eye, EyeOff, Activity } from 'lucide-react-native';
@@ -55,10 +56,12 @@ export default function RegisterScreen() {
       return;
     }
 
+    const emailRedirectTo = Linking.createURL('auth/confirm');
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo,
         data: {
           full_name: fullName,
           // We'll set these later in Onboarding
@@ -77,16 +80,27 @@ export default function RegisterScreen() {
         showAlert('Ошибка', 'Пользователь с таким email уже существует.', 'error');
         return;
       }
-
-      showAlert(
-        'Подтверждение почты',
-        'На вашу почту отправлено письмо для подтверждения. Пожалуйста, подтвердите почту перед входом.',
-        'success',
-        () => {
-          setAlertVisible(false);
-          navigation.navigate('Login');
-        }
-      );
+      if (data.session) {
+        showAlert(
+          'Успех',
+          'Регистрация завершена. Можно входить в аккаунт.',
+          'success',
+          () => {
+            setAlertVisible(false);
+            navigation.navigate('Login');
+          }
+        );
+      } else {
+        showAlert(
+          'Подтверждение почты',
+          'На вашу почту отправлено письмо для подтверждения. Пожалуйста, подтвердите почту перед входом.',
+          'success',
+          () => {
+            setAlertVisible(false);
+            navigation.navigate('Login');
+          }
+        );
+      }
     }
   }
 

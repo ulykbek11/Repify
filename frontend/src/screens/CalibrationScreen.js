@@ -1,13 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, StyleSheet } from 'react-native';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { supabase } from '../lib/supabase';
+import { supabase, DEV_MODE } from '../lib/supabase';
 import { ArrowLeft, Video, StopCircle, Check, AlertTriangle, RotateCcw, SkipForward, RefreshCw } from 'lucide-react-native';
 import { CustomAlert } from '../components/CustomAlert';
 import { API_URL } from '../config';
 import { BioMechanicsEngine } from '../lib/BioMechanicsEngine';
+
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 30000) => {
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    console.log(`🚀 [Calibration] Запрос: ${options.method || 'GET'} ${url}`);
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    console.log(`✅ [Calibration] Ответ: ${response.status}`);
+    return response;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error(`Сервер не ответил за ${timeoutMs / 1000}с. Проверь IP (${url}) и что бэкенд запущен.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timerId);
+  }
+};
 
 
 const { width } = Dimensions.get('window');
@@ -32,6 +50,7 @@ export default function CalibrationScreen() {
 
     const cameraRef = useRef(null);
     const navigation = useNavigation();
+    const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
     // Alert State
     const [alertVisible, setAlertVisible] = useState(false);
@@ -59,7 +78,20 @@ export default function CalibrationScreen() {
     };
 
     const startRecording = async () => {
+        if (isRecording) {
+            return;
+        }
         if (cameraRef.current) {
+            if (!permission?.granted) {
+                await requestPermission();
+                setError('Нужно разрешение камеры');
+                return;
+            }
+            if (!micPermission?.granted) {
+                await requestMicPermission();
+                setError('Нужно разрешение микрофона');
+                return;
+            }
             console.log('[CalibrationScreen] Starting video recording...');
             setIsRecording(true);
             setStep(STEPS.RECORD);
@@ -79,7 +111,7 @@ export default function CalibrationScreen() {
                 }
             } catch (err) {
                 console.error('[CalibrationScreen] Recording error:', err);
-                setError('Ошибка записи видео');
+                setError(err?.message || 'Ошибка записи видео');
                 setIsRecording(false);
             }
         }
@@ -109,8 +141,35 @@ export default function CalibrationScreen() {
             const analysisResult = await BioMechanicsEngine.analyzeGenetics(videoUri);
 
             if (analysisResult.success) {
+                const { poseSequence } = await BioMechanicsEngine.getPoseSequence(videoUri, DEV_MODE || __DEV__);
+                if (!poseSequence || poseSequence.length === 0) {
+                    throw new Error('Не удалось извлечь позу из видео');
+                }
+
+                console.log(`[CalibrationScreen] Бэкенд: ${API_URL}`);
+                console.log(`[CalibrationScreen] Отправляю ${poseSequence.length} кадров на /api/calibrate`);
+                const calibrationResponse = await fetchWithTimeout(
+                    `${API_URL}/api/calibrate`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: user?.id || 'anonymous',
+                            exercise: 'squats',
+                            pose_sequence: poseSequence,
+                            user_metadata: user?.user_metadata || {}
+                        })
+                    },
+                    30000
+                );
+
+                if (!calibrationResponse.ok) {
+                    const errorText = await calibrationResponse.text();
+                    throw new Error(`Ошибка калибровки на сервере: ${errorText}`);
+                }
+
                 setResult(analysisResult);
-                
+
                 // Save results to Supabase profile
                 const { error: updateError } = await supabase.auth.updateUser({
                     data: {
@@ -165,37 +224,37 @@ export default function CalibrationScreen() {
     // ===== STEP: INTRO =====
     if (step === STEPS.INTRO) {
         return (
-            <SafeAreaView className="flex-1 bg-background px-6">
-                <View className="flex-1 justify-center items-center">
-                    <View className="bg-primary/20 p-6 rounded-full mb-6">
+            <SafeAreaView style={styles.container}>
+                <View style={styles.content}>
+                    <View style={styles.iconContainer}>
                         <Video color="#FF6B00" size={64} />
                     </View>
 
-                    <Text className="text-white text-2xl font-bold text-center mb-4">
+                    <Text style={styles.title}>
                         Калибровка
                     </Text>
 
-                    <Text className="text-muted text-center text-base mb-8 px-4">
+                    <Text style={styles.description}>
                         Для персональной оценки техники нам нужно измерить ваши пропорции.{'\n\n'}
-                        <Text className="text-white font-semibold">Что нужно сделать:</Text>{'\n'}
+                        <Text style={styles.boldText}>Что нужно сделать:</Text>{'\n'}
                         1. Поставьте телефон сбоку{'\n'}
                         2. Отойдите на 2-3 метра{'\n'}
-                        3. Сделайте 5 приседаний без веса
+                        3. Сделайте несколько приседаний (3-5) без веса
                     </Text>
 
                     <TouchableOpacity
                         onPress={() => setStep(STEPS.CHECK)}
-                        className="w-full bg-primary py-4 rounded-2xl items-center mb-4"
+                        style={styles.primaryButton}
                     >
-                        <Text className="text-white font-bold text-lg">Начать калибровку</Text>
+                        <Text style={styles.primaryButtonText}>Начать калибровку</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         onPress={handleSkip}
-                        className="flex-row items-center py-3"
+                        style={styles.skipButton}
                     >
                         <SkipForward color="#8B8E98" size={20} />
-                        <Text className="text-muted ml-2">Пропустить</Text>
+                        <Text style={styles.skipText}>Пропустить</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -206,50 +265,50 @@ export default function CalibrationScreen() {
     if (step === STEPS.CHECK || step === STEPS.RECORD) {
         if (!permission) {
             // Camera permissions are still loading
-            return <View className="flex-1 bg-background" />;
+            return <View style={styles.container} />;
         }
 
         if (!permission.granted) {
             return (
-                <SafeAreaView className="flex-1 bg-background items-center justify-center px-6">
-                    <Text className="text-white text-center text-lg mb-4">Нет доступа к камере</Text>
+                <SafeAreaView style={[styles.container, styles.centered]}>
+                    <Text style={[styles.text, { marginBottom: 16 }]}>Нет доступа к камере</Text>
                     <TouchableOpacity
                         onPress={requestPermission}
-                        className="bg-primary px-8 py-4 rounded-full"
+                        style={styles.primaryButton}
                     >
-                        <Text className="text-white font-bold text-lg">Разрешить доступ</Text>
+                        <Text style={styles.primaryButtonText}>Разрешить доступ</Text>
                     </TouchableOpacity>
                 </SafeAreaView>
             );
         }
 
         return (
-            <View className="flex-1 bg-background">
+            <View style={styles.container}>
                 <CameraView
                     ref={cameraRef}
                     style={{ flex: 1 }}
                     facing={facing}
                     mode="video"
                 >
-                    <SafeAreaView className="flex-1 justify-between p-6">
+                    <SafeAreaView style={styles.cameraOverlay}>
                         {/* Header */}
-                        <View className="flex-row items-center justify-between">
+                        <View style={styles.header}>
                             <TouchableOpacity
                                 onPress={() => navigation.goBack()}
-                                className="w-10 h-10 bg-black/40 rounded-full items-center justify-center"
+                                style={styles.iconButton}
                             >
                                 <ArrowLeft color="white" size={24} />
                             </TouchableOpacity>
 
-                            <View className="bg-black/40 px-4 py-2 rounded-full">
-                                <Text className="text-white font-bold">
+                            <View style={styles.badge}>
+                                <Text style={styles.badgeText}>
                                     {step === STEPS.RECORD ? 'Запись...' : 'Проверка ракурса'}
                                 </Text>
                             </View>
 
                             <TouchableOpacity
                                 onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}
-                                className="w-10 h-10 bg-black/40 rounded-full items-center justify-center"
+                                style={styles.iconButton}
                                 disabled={isRecording}
                             >
                                 <RefreshCw color={isRecording ? "#888" : "white"} size={20} />
@@ -258,20 +317,20 @@ export default function CalibrationScreen() {
 
                         {/* Error Banner */}
                         {error && (
-                            <View className="bg-error/80 mx-4 p-4 rounded-2xl flex-row items-center">
+                            <View style={styles.errorBanner}>
                                 <AlertTriangle color="white" size={24} />
-                                <Text className="text-white ml-3 flex-1">{error}</Text>
+                                <Text style={styles.errorText}>{error}</Text>
                             </View>
                         )}
 
                         {/* Instructions */}
-                        <View className="bg-black/60 mx-4 p-4 rounded-2xl">
-                            <Text className="text-white text-center font-semibold mb-2">
+                        <View style={styles.instructionsOverlay}>
+                            <Text style={styles.instructionsTitle}>
                                 {step === STEPS.CHECK
                                     ? '📱 Поставьте телефон сбоку'
-                                    : '🏋️ Выполните 5 приседаний'}
+                                    : '🏋️ Выполните несколько приседаний'}
                             </Text>
-                            <Text className="text-muted text-center text-sm">
+                            <Text style={styles.instructionsText}>
                                 {step === STEPS.CHECK
                                     ? 'Камера должна видеть вас в профиль'
                                     : 'Приседайте в естественном темпе'}
@@ -279,22 +338,24 @@ export default function CalibrationScreen() {
                         </View>
 
                         {/* Record Button */}
-                        <View className="items-center mb-8">
+                        <View style={styles.controlsContainer}>
                             <TouchableOpacity
                                 onPress={isRecording ? stopRecording : startRecording}
-                                className={`w-20 h-20 rounded-full items-center justify-center border-4 
-                  ${isRecording ? 'bg-red-500 border-red-200' : 'bg-white border-gray-200'}`}
+                                style={[
+                                    styles.recordButtonRing,
+                                    isRecording ? styles.recordingRing : styles.idleRing
+                                ]}
                             >
                                 {isRecording ? (
-                                    <View className="w-8 h-8 bg-white rounded-md" />
+                                    <View style={styles.recordingDot} />
                                 ) : (
-                                    <View className="w-16 h-16 bg-primary rounded-full items-center justify-center border-2 border-white">
+                                    <View style={styles.idleDot}>
                                         <Video color="white" size={32} />
                                     </View>
                                 )}
                             </TouchableOpacity>
 
-                            <Text className="text-white mt-4 font-semibold">
+                            <Text style={styles.controlsText}>
                                 {isRecording ? 'Нажмите для остановки' : 'Начать запись'}
                             </Text>
                         </View>
@@ -307,10 +368,10 @@ export default function CalibrationScreen() {
     // ===== STEP: PROCESS =====
     if (step === STEPS.PROCESS) {
         return (
-            <SafeAreaView className="flex-1 bg-background items-center justify-center px-6">
+            <SafeAreaView style={[styles.container, styles.centered]}>
                 <ActivityIndicator size="large" color="#FF6B00" />
-                <Text className="text-white text-xl font-bold mt-6">Анализируем...</Text>
-                <Text className="text-muted text-center mt-2">
+                <Text style={styles.title}>Анализируем...</Text>
+                <Text style={styles.description}>
                     Определяем ваши анатомические пропорции
                 </Text>
             </SafeAreaView>
@@ -323,66 +384,66 @@ export default function CalibrationScreen() {
         const biomechanics = result.biomechanics || {};
 
         return (
-            <SafeAreaView className="flex-1 bg-background px-6">
-                <View className="flex-1 justify-center items-center">
-                    <View className="bg-secondary/20 p-6 rounded-full mb-6">
+            <SafeAreaView style={styles.container}>
+                <View style={styles.content}>
+                    <View style={styles.successIconContainer}>
                         <Check color="#00FF87" size={64} />
                     </View>
 
-                    <Text className="text-white text-2xl font-bold text-center mb-2">
+                    <Text style={styles.title}>
                         Калибровка завершена!
                     </Text>
 
-                    <Text className="text-muted text-center mb-6">
+                    <Text style={styles.description}>
                         Качество калибровки:
                     </Text>
 
                     {renderQualityStars(result.quality_score || 0)}
 
                     {/* Body Type Summary */}
-                    <View className="bg-card w-full p-6 rounded-2xl mt-6 border border-white/5">
-                        <Text className="text-white font-bold text-lg mb-4 text-center">
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>
                             Ваши пропорции
                         </Text>
 
-                        <View className="flex-row justify-between mb-3">
-                            <Text className="text-muted">Бедро:</Text>
-                            <Text className="text-white font-semibold capitalize">
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Бедро:</Text>
+                            <Text style={styles.value}>
                                 {bodyType.femur || 'среднее'}
                             </Text>
                         </View>
 
-                        <View className="flex-row justify-between mb-3">
-                            <Text className="text-muted">Корпус:</Text>
-                            <Text className="text-white font-semibold capitalize">
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Корпус:</Text>
+                            <Text style={styles.value}>
                                 {bodyType.torso || 'средний'}
                             </Text>
                         </View>
 
-                        <View className="flex-row justify-between mb-3">
-                            <Text className="text-muted">Подвижность голеностопа:</Text>
-                            <Text className="text-white font-semibold">
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Подвижность голеностопа:</Text>
+                            <Text style={styles.value}>
                                 {biomechanics.ankle_mobility_score?.toFixed(1) || '7.0'}/10
                             </Text>
                         </View>
 
-                        <View className="flex-row justify-between">
-                            <Text className="text-muted">Подвижность бедра:</Text>
-                            <Text className="text-white font-semibold">
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Подвижность бедра:</Text>
+                            <Text style={styles.value}>
                                 {biomechanics.hip_mobility_score?.toFixed(1) || '7.0'}/10
                             </Text>
                         </View>
                     </View>
 
-                    <Text className="text-muted text-center text-sm mt-4 px-4">
+                    <Text style={styles.description}>
                         Теперь анализ техники будет учитывать ваши индивидуальные особенности
                     </Text>
 
                     <TouchableOpacity
                         onPress={handleComplete}
-                        className="w-full bg-primary py-4 rounded-2xl items-center mt-8"
+                        style={styles.primaryButton}
                     >
-                        <Text className="text-white font-bold text-lg">Продолжить</Text>
+                        <Text style={styles.primaryButtonText}>Продолжить</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -391,8 +452,210 @@ export default function CalibrationScreen() {
 
     // Fallback
     return (
-        <SafeAreaView className="flex-1 bg-background items-center justify-center">
-            <Text className="text-white">Загрузка...</Text>
+        <SafeAreaView style={[styles.container, styles.centered]}>
+            <Text style={styles.text}>Загрузка...</Text>
         </SafeAreaView>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#0A0E1A',
+        paddingHorizontal: 24,
+    },
+    centered: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    content: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    iconContainer: {
+        backgroundColor: 'rgba(255, 107, 0, 0.2)',
+        padding: 24,
+        borderRadius: 999,
+        marginBottom: 24,
+    },
+    successIconContainer: {
+        backgroundColor: 'rgba(0, 255, 135, 0.2)',
+        padding: 24,
+        borderRadius: 999,
+        marginBottom: 24,
+    },
+    title: {
+        color: 'white',
+        fontSize: 24,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    description: {
+        color: '#8B8E98',
+        textAlign: 'center',
+        fontSize: 16,
+        marginBottom: 32,
+        paddingHorizontal: 16,
+    },
+    boldText: {
+        color: 'white',
+        fontWeight: 'semibold',
+    },
+    primaryButton: {
+        width: '100%',
+        backgroundColor: '#FF6B00',
+        paddingVertical: 16,
+        borderRadius: 16,
+        alignItems: 'center',
+        marginBottom: 16,
+        marginTop: 16,
+    },
+    primaryButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 18,
+    },
+    skipButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+    },
+    skipText: {
+        color: '#8B8E98',
+        marginLeft: 8,
+    },
+    text: {
+        color: 'white',
+        fontSize: 16,
+    },
+    cameraOverlay: {
+        flex: 1,
+        justifyContent: 'space-between',
+        padding: 24,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    iconButton: {
+        width: 40,
+        height: 40,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        borderRadius: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    badge: {
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 999,
+    },
+    badgeText: {
+        color: 'white',
+        fontWeight: 'bold',
+    },
+    errorBanner: {
+        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+        marginHorizontal: 16,
+        padding: 16,
+        borderRadius: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    errorText: {
+        color: 'white',
+        marginLeft: 12,
+        flex: 1,
+    },
+    instructionsOverlay: {
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        marginHorizontal: 16,
+        padding: 16,
+        borderRadius: 16,
+    },
+    instructionsTitle: {
+        color: 'white',
+        textAlign: 'center',
+        fontWeight: 'semibold',
+        marginBottom: 8,
+    },
+    instructionsText: {
+        color: '#8B8E98',
+        textAlign: 'center',
+        fontSize: 14,
+    },
+    controlsContainer: {
+        alignItems: 'center',
+        marginBottom: 32,
+    },
+    recordButtonRing: {
+        width: 80,
+        height: 80,
+        borderRadius: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 4,
+    },
+    recordingRing: {
+        backgroundColor: '#EF4444',
+        borderColor: '#FECACA',
+    },
+    idleRing: {
+        backgroundColor: 'white',
+        borderColor: '#E5E7EB',
+    },
+    recordingDot: {
+        width: 32,
+        height: 32,
+        backgroundColor: 'white',
+        borderRadius: 6,
+    },
+    idleDot: {
+        width: 64,
+        height: 64,
+        backgroundColor: '#FF6B00',
+        borderRadius: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: 'white',
+    },
+    controlsText: {
+        color: 'white',
+        marginTop: 16,
+        fontWeight: 'semibold',
+    },
+    card: {
+        backgroundColor: '#1A1F2E',
+        width: '100%',
+        padding: 24,
+        borderRadius: 16,
+        marginTop: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    cardTitle: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 18,
+        marginBottom: 16,
+        textAlign: 'center',
+    },
+    row: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    label: {
+        color: '#8B8E98',
+    },
+    value: {
+        color: 'white',
+        fontWeight: 'semibold',
+        textTransform: 'capitalize',
+    },
+});

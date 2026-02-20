@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,89 +40,285 @@ export default function WorkoutDayScreen() {
   const dayTitle = day?.day || 'Тренировка';
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <LinearGradient
         colors={['#1A1F2E', '#0A0E1A']}
-        className="px-6 py-4 border-b border-white/5"
+        style={styles.headerGradient}
       >
-        <View className="flex-row items-center mb-4">
-            <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 -ml-2 mr-2">
+        <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <ChevronLeft color="white" size={24} />
             </TouchableOpacity>
             <View>
-                <Text className="text-white text-xl font-bold">{dayTitle}</Text>
-                <Text className="text-white/60 text-sm">{exercises.length} упражнений • ~45 минут</Text>
+                <Text style={styles.headerTitle}>{dayTitle}</Text>
+                <Text style={styles.headerSubtitle}>{exercises.length} упражнений • ~45 минут</Text>
             </View>
         </View>
 
-        <View className="flex-row justify-between mb-2">
-            <Text className="text-white/60 text-xs">Прогресс</Text>
-            <Text className="text-white/60 text-xs">{completedCount}/{exercises.length} упражнений</Text>
+        <View style={styles.progressInfo}>
+            <Text style={styles.progressText}>Прогресс</Text>
+            <Text style={styles.progressText}>{completedCount}/{exercises.length} упражнений</Text>
         </View>
-        <View className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-            <View className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }} />
+        <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
         </View>
       </LinearGradient>
 
       {/* Exercises List */}
-      <ScrollView className="flex-1 px-4 py-4">
+      <ScrollView style={styles.scrollContent}>
         {exercises.map((exercise, index) => (
             <View 
                 key={exercise.id} 
-                className={`bg-surface rounded-2xl p-4 mb-3 border ${exercise.status === 'in_progress' ? 'border-primary' : 'border-white/5'}`}
+                style={[
+                    styles.exerciseCard,
+                    exercise.status === 'in_progress' ? styles.borderActive : styles.borderInactive
+                ]}
             >
-                <View className="flex-row justify-between items-start mb-3">
+                <View style={styles.cardHeader}>
                     <View>
-                        <Text className="text-white text-lg font-bold mb-1">{index + 1}. {exercise.title}</Text>
-                        <Text className="text-muted text-sm">{exercise.muscle} • {exercise.type}</Text>
+                        <Text style={styles.cardTitle}>{index + 1}. {exercise.title}</Text>
+                        <Text style={styles.cardSubtitle}>{exercise.muscle} • {exercise.type}</Text>
                     </View>
                     {exercise.status === 'completed' && (
                         <CheckCircle color="#22C55E" size={20} fill="#22C55E20" />
                     )}
                 </View>
 
-                <View className="h-[1px] w-full bg-white/5 mb-3" />
+                <View style={styles.separator} />
 
-                <View className="flex-row items-center space-x-4 mb-4">
-                    <View className="flex-1">
-                        <Text className="text-white text-base font-semibold">{exercise.sets} подхода × {exercise.reps}</Text>
-                        <Text className="text-muted text-sm">Отдых: {exercise.rest} сек</Text>
+                <View style={styles.cardBody}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.detailsText}>{exercise.sets} подхода × {exercise.reps}</Text>
+                        <Text style={styles.cardSubtitle}>Отдых: {exercise.rest} сек</Text>
                     </View>
                     {/* Placeholder for GIF/Image */}
-                    <View className="w-20 h-12 bg-white/5 rounded-lg" />
+                    <View style={styles.placeholderImage} />
                 </View>
 
-                <View className="flex-row space-x-3">
+                <View style={styles.actionsContainer}>
                     <TouchableOpacity 
-                        className={`flex-1 h-12 rounded-xl items-center justify-center flex-row space-x-2 ${exercise.status === 'completed' ? 'bg-white/10' : 'bg-primary'}`}
+                        style={[
+                            styles.actionButton,
+                            exercise.status === 'completed' ? styles.buttonCompleted : styles.buttonActive
+                        ]}
                         onPress={() => navigation.navigate('Exercise', { exercise: exercise.id })} // Assuming ExerciseScreen handles the actual workout
                     >
                         {exercise.status !== 'completed' && <Play color="white" size={16} fill="white" />}
-                        <Text className={`font-bold ${exercise.status === 'completed' ? 'text-muted' : 'text-white'}`}>
+                        <Text style={exercise.status === 'completed' ? styles.buttonTextCompleted : styles.buttonTextActive}>
                             {exercise.status === 'completed' ? 'Выполнено' : exercise.status === 'in_progress' ? 'Продолжить' : 'Начать'}
                         </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity className="w-12 h-12 rounded-xl bg-white/5 items-center justify-center border border-white/5">
-                        <Text className="text-white font-bold">?</Text>
+                    <TouchableOpacity style={styles.helpButton}>
+                        <Text style={styles.helpButtonText}>?</Text>
                     </TouchableOpacity>
                 </View>
             </View>
         ))}
-        <View className="h-24" /> {/* Bottom padding */}
+        <View style={styles.bottomPadding} /> {/* Bottom padding */}
       </ScrollView>
 
       {/* Fixed Bottom Action */}
-      <View className="absolute bottom-0 left-0 right-0 bg-[#1A1F2E] p-4 border-t border-white/5">
-        <Text className="text-muted text-center text-sm mb-3">{completedCount} из {exercises.length} завершено</Text>
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>{completedCount} из {exercises.length} завершено</Text>
         <TouchableOpacity 
-            className={`w-full h-14 rounded-2xl items-center justify-center ${completedCount === exercises.length ? 'bg-primary' : 'bg-white/10'}`}
+            style={[
+                styles.finishButton,
+                completedCount === exercises.length ? styles.buttonActive : styles.buttonCompleted
+            ]}
             disabled={completedCount !== exercises.length}
             onPress={() => navigation.replace('Main')} // Go to Main after finishing workout
         >
-            <Text className={`font-bold text-lg ${completedCount === exercises.length ? 'text-white' : 'text-white/30'}`}>Завершить тренировку</Text>
+            <Text style={completedCount === exercises.length ? styles.finishButtonTextActive : styles.finishButtonTextDisabled}>Завершить тренировку</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0E1A',
+  },
+  headerGradient: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+    marginRight: 8,
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+  },
+  progressInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  progressText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+  },
+  progressBarBg: {
+    width: '100%',
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#FF6B00',
+    borderRadius: 999,
+  },
+  scrollContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  exerciseCard: {
+    backgroundColor: '#1A1F2E',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  borderActive: {
+    borderColor: '#FF6B00',
+  },
+  borderInactive: {
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  cardTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    color: '#9CA3AF',
+    fontSize: 14,
+  },
+  separator: {
+    height: 1,
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 12,
+  },
+  cardBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 16,
+  },
+  detailsText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  placeholderImage: {
+    width: 80,
+    height: 48,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 8,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  buttonCompleted: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  buttonActive: {
+    backgroundColor: '#FF6B00',
+  },
+  buttonTextCompleted: {
+    color: '#9CA3AF',
+    fontWeight: 'bold',
+  },
+  buttonTextActive: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  helpButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  helpButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  bottomPadding: {
+    height: 96,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#1A1F2E',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  footerText: {
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  finishButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finishButtonTextDisabled: {
+    color: 'rgba(255,255,255,0.3)',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  finishButtonTextActive: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+});

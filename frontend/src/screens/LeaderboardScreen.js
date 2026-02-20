@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, Image } from 'react-native';
+import { View, Text, ScrollView, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Trophy, Medal } from 'lucide-react-native';
 
@@ -13,64 +13,64 @@ export default function LeaderboardScreen() {
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="px-6 py-4 flex-row items-center space-x-2">
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
         <Trophy color="#FF6B00" size={24} />
-        <Text className="text-2xl font-bold text-white">Лидеры</Text>
+        <Text style={styles.headerTitle}>Лидеры</Text>
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Top 3 Podium */}
-        <View className="flex-row justify-center items-end h-64 mb-8 px-6">
+        <View style={styles.podiumContainer}>
           {/* 2nd Place */}
-          <View className="items-center -mr-4 z-10">
-            <View className="w-16 h-16 rounded-full border-2 border-white mb-2 overflow-hidden">
-              <Image source={{ uri: leaders[1].avatar }} className="w-full h-full" />
+          <View style={[styles.podiumItem, styles.podiumItemSide]}>
+            <View style={styles.avatarContainer}>
+              <Image source={{ uri: leaders[1].avatar }} style={styles.avatar} />
             </View>
-            <Text className="text-white font-bold mb-1">{leaders[1].name}</Text>
-            <View className="w-24 h-32 bg-card rounded-t-lg border-t-4 border-secondary items-center justify-center">
-              <Text className="text-3xl font-bold text-white">2</Text>
-              <Text className="text-secondary text-xs font-bold">{leaders[1].score}</Text>
+            <Text style={styles.name}>{leaders[1].name}</Text>
+            <View style={[styles.podiumBar, styles.podiumBarSecond]}>
+              <Text style={styles.rank}>2</Text>
+              <Text style={[styles.score, { color: '#FF3B5C' }]}>{leaders[1].score}</Text>
             </View>
           </View>
 
           {/* 1st Place */}
-          <View className="items-center z-20 mb-4">
-            <View className="w-20 h-20 rounded-full border-2 border-primary mb-2 overflow-hidden shadow-[0_0_20px_rgba(255,107,0,0.5)]">
-              <Image source={{ uri: leaders[0].avatar }} className="w-full h-full" />
+          <View style={[styles.podiumItem, styles.podiumItemCenter]}>
+            <View style={[styles.avatarContainer, styles.avatarContainerFirst]}>
+              <Image source={{ uri: leaders[0].avatar }} style={styles.avatar} />
             </View>
-            <View className="bg-primary px-2 py-0.5 rounded-full absolute -top-2">
-               <Text className="text-white text-[10px] font-bold">CHAMPION</Text>
+            <View style={styles.badge}>
+               <Text style={styles.badgeText}>CHAMPION</Text>
             </View>
-            <Text className="text-white font-bold text-lg mb-1">{leaders[0].name}</Text>
-            <View className="w-28 h-40 bg-card rounded-t-lg border-t-4 border-primary items-center justify-center shadow-[0_0_30px_rgba(255,107,0,0.2)]">
+            <Text style={[styles.name, styles.nameFirst]}>{leaders[0].name}</Text>
+            <View style={[styles.podiumBar, styles.podiumBarFirst]}>
               <Trophy color="#FF6B00" size={32} />
-              <Text className="text-4xl font-bold text-white mt-2">1</Text>
-              <Text className="text-primary text-sm font-bold">{leaders[0].score}</Text>
+              <Text style={[styles.rank, styles.rankFirst]}>1</Text>
+              <Text style={[styles.score, { color: '#FF6B00' }]}>{leaders[0].score}</Text>
             </View>
           </View>
 
           {/* 3rd Place */}
-          <View className="items-center -ml-4 z-10">
-            <View className="w-16 h-16 rounded-full border-2 border-white mb-2 overflow-hidden">
-              <Image source={{ uri: leaders[2].avatar }} className="w-full h-full" />
+          <View style={[styles.podiumItem, styles.podiumItemSide]}>
+            <View style={styles.avatarContainer}>
+              <Image source={{ uri: leaders[2].avatar }} style={styles.avatar} />
             </View>
-            <Text className="text-white font-bold mb-1">{leaders[2].name}</Text>
-            <View className="w-24 h-24 bg-card rounded-t-lg border-t-4 border-muted items-center justify-center">
-              <Text className="text-3xl font-bold text-white">3</Text>
-              <Text className="text-muted text-xs font-bold">{leaders[2].score}</Text>
+            <Text style={styles.name}>{leaders[2].name}</Text>
+            <View style={[styles.podiumBar, styles.podiumBarThird]}>
+              <Text style={styles.rank}>3</Text>
+              <Text style={[styles.score, { color: '#8B8E98' }]}>{leaders[2].score}</Text>
             </View>
           </View>
         </View>
 
         {/* List */}
-        <View className="px-6 space-y-3">
+        <View style={styles.listContainer}>
           {leaders.slice(3).map((leader, index) => (
-            <View key={leader.id} className="bg-card p-4 rounded-2xl border border-white/5 flex-row items-center">
-              <Text className="text-muted font-bold text-lg w-8">{index + 4}</Text>
-              <Image source={{ uri: leader.avatar }} className="w-10 h-10 rounded-full bg-gray-700 mr-3" />
-              <Text className="text-white font-bold flex-1">{leader.name}</Text>
-              <Text className="text-primary font-bold">{leader.score}</Text>
+            <View key={leader.id} style={styles.listItem}>
+              <Text style={styles.listRank}>{index + 4}</Text>
+              <Image source={{ uri: leader.avatar }} style={styles.listAvatar} />
+              <Text style={styles.listName}>{leader.name}</Text>
+              <Text style={styles.listScore}>{leader.score}</Text>
             </View>
           ))}
         </View>
@@ -78,3 +78,165 @@ export default function LeaderboardScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0E1A',
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  content: {
+    flex: 1,
+  },
+  podiumContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    height: 256,
+    marginBottom: 32,
+    paddingHorizontal: 24,
+  },
+  podiumItem: {
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  podiumItemSide: {
+    // 2nd and 3rd place logic
+  },
+  podiumItemCenter: {
+    zIndex: 20,
+    marginBottom: 16,
+    marginHorizontal: -16, // overlap slightly
+  },
+  avatarContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: 'white',
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  avatarContainerFirst: {
+    width: 80,
+    height: 80,
+    borderColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  badge: {
+    backgroundColor: '#FF6B00',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    position: 'absolute',
+    top: 70, // Adjust based on avatar size
+    zIndex: 30,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  name: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  nameFirst: {
+    fontSize: 18,
+  },
+  podiumBar: {
+    width: 96,
+    backgroundColor: '#1A1F2E',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderTopWidth: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  podiumBarSecond: {
+    height: 128,
+    borderColor: '#FF3B5C', // Secondary color equivalent
+  },
+  podiumBarFirst: {
+    height: 160,
+    width: 112,
+    borderColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 30,
+    elevation: 10,
+  },
+  podiumBarThird: {
+    height: 96,
+    borderColor: '#8B8E98',
+  },
+  rank: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  rankFirst: {
+    fontSize: 36,
+    marginTop: 8,
+  },
+  score: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  listContainer: {
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  listItem: {
+    backgroundColor: '#1A1F2E',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listRank: {
+    color: '#8B8E98',
+    fontWeight: 'bold',
+    fontSize: 18,
+    width: 32,
+  },
+  listAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: '#374151',
+    marginRight: 12,
+  },
+  listName: {
+    color: 'white',
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  listScore: {
+    color: '#FF6B00',
+    fontWeight: 'bold',
+  },
+});

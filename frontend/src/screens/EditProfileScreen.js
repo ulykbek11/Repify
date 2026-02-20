@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, KeyboardAvoidingView, Platform, Modal, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -160,7 +160,7 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={styles.container}>
       <CustomAlert 
         visible={alertVisible}
         title={alertConfig.title}
@@ -169,47 +169,47 @@ export default function EditProfileScreen() {
         onClose={alertConfig.onConfirm}
       />
       
-      <View className="px-6 py-4 flex-row items-center space-x-4 border-b border-white/5">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="w-10 h-10 bg-surface rounded-full items-center justify-center">
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft color="white" size={24} />
         </TouchableOpacity>
-        <Text className="text-xl font-bold text-white">Редактировать профиль</Text>
+        <Text style={styles.headerTitle}>Редактировать профиль</Text>
       </View>
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
+        style={styles.keyboardView}
       >
-        <ScrollView className="flex-1 px-6 pt-6">
+        <ScrollView style={styles.scrollContent}>
           
           {/* Avatar Section */}
-          <View className="items-center mb-8">
+          <View style={styles.avatarSection}>
             <TouchableOpacity 
                 onPress={pickImage}
                 disabled={uploading}
-                className="w-28 h-28 bg-surface rounded-full border-2 border-primary items-center justify-center overflow-hidden mb-4 relative"
+                style={styles.avatarContainer}
             >
                {uploading ? (
-                   <Loader2 size={32} color="#FF6B00" className="animate-spin" />
+                   <Loader2 size={32} color="#FF6B00" />
                ) : avatarUrl ? (
-                 <Image source={{ uri: avatarUrl }} className="w-full h-full" />
+                 <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
                ) : (
                  <User color="#8B8E98" size={48} />
                )}
-               <View className="absolute bottom-0 w-full bg-black/50 h-8 items-center justify-center">
+               <View style={styles.cameraOverlay}>
                    <Camera color="white" size={16} />
                </View>
             </TouchableOpacity>
-            <Text className="text-muted text-sm">Нажмите, чтобы изменить фото</Text>
+            <Text style={styles.avatarHint}>Нажмите, чтобы изменить фото</Text>
           </View>
 
           {/* Name Field */}
-          <View className="mb-6">
-            <Text className="text-white mb-2 ml-1">Имя пользователя</Text>
-            <View className="bg-surface rounded-xl flex-row items-center px-4 py-3 border border-white/5">
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Имя пользователя</Text>
+            <View style={styles.inputContainer}>
                 <User color="#8B8E98" size={20} />
                 <TextInput 
-                    className="flex-1 ml-3 text-white text-base"
+                    style={styles.input}
                     placeholder="Ваше имя"
                     placeholderTextColor="#52525B"
                     value={fullName}
@@ -219,8 +219,8 @@ export default function EditProfileScreen() {
           </View>
 
           {/* Password Button */}
-          <View className="mb-6">
-            <Text className="text-white mb-2 ml-1">Безопасность</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Безопасность</Text>
             <TouchableOpacity 
                 onPress={() => {
                     setPasswordStep(1);
@@ -230,40 +230,40 @@ export default function EditProfileScreen() {
                     setShowNewPassword(false);
                     setPasswordModalVisible(true);
                 }}
-                className="bg-surface rounded-xl flex-row items-center justify-between px-4 py-4 border border-white/5"
+                style={styles.passwordButton}
             >
-                <View className="flex-row items-center">
+                <View style={styles.passwordButtonContent}>
                     <Lock color="#8B8E98" size={20} />
-                    <Text className="ml-3 text-white text-base">Сменить пароль</Text>
+                    <Text style={styles.passwordButtonText}>Сменить пароль</Text>
                 </View>
-                <Text className="text-primary font-bold">Изменить</Text>
+                <Text style={styles.changeText}>Изменить</Text>
             </TouchableOpacity>
           </View>
 
           {/* Payment Methods (Future) */}
-          <View className="mb-8 opacity-50">
-            <Text className="text-white mb-2 ml-1">Способы оплаты (Скоро)</Text>
-            <View className="bg-surface rounded-xl flex-row items-center px-4 py-3 border border-dashed border-white/20">
+          <View style={styles.paymentSection}>
+            <Text style={styles.label}>Способы оплаты (Скоро)</Text>
+            <View style={styles.paymentContainer}>
                 <CreditCard color="#8B8E98" size={20} />
-                <Text className="ml-3 text-muted text-base">Привязка карты недоступна</Text>
+                <Text style={styles.paymentText}>Привязка карты недоступна</Text>
             </View>
           </View>
 
         </ScrollView>
 
         {/* Save Button */}
-        <View className="p-6 border-t border-white/5 bg-background">
+        <View style={styles.footer}>
           <TouchableOpacity 
             onPress={handleUpdateProfile}
             disabled={loading}
-            className="w-full bg-primary h-14 rounded-2xl items-center justify-center shadow-lg shadow-primary/30 flex-row space-x-2"
+            style={styles.saveButton}
           >
             {loading ? (
-                <Loader2 size={24} color="white" className="animate-spin" />
+                <Loader2 size={24} color="white" />
             ) : (
                 <>
                     <Save color="white" size={20} />
-                    <Text className="text-white font-bold text-lg">Сохранить</Text>
+                    <Text style={styles.saveButtonText}>Сохранить</Text>
                 </>
             )}
           </TouchableOpacity>
@@ -277,32 +277,32 @@ export default function EditProfileScreen() {
       >
         <KeyboardAvoidingView 
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            className="flex-1 justify-end bg-black/50"
+            style={styles.modalOverlay}
         >
-          <View className="bg-[#1A1F2E] rounded-t-3xl p-6 border-t border-white/10">
-            <View className="flex-row justify-between items-center mb-6">
-                <Text className="text-xl font-bold text-white">
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+                <Text style={styles.headerTitle}>
                     {passwordStep === 1 ? 'Подтвердите пароль' : 'Новый пароль'}
                 </Text>
-                <TouchableOpacity onPress={() => setPasswordModalVisible(false)} className="p-2">
+                <TouchableOpacity onPress={() => setPasswordModalVisible(false)} style={styles.closeButton}>
                     <X color="white" size={24} />
                 </TouchableOpacity>
             </View>
 
             {passwordStep === 1 ? (
                 <View>
-                    <Text className="text-muted mb-4">Для безопасности, пожалуйста, введите ваш текущий пароль.</Text>
-                    <View className="bg-surface rounded-xl flex-row items-center px-4 py-3 border border-white/5 mb-6">
+                    <Text style={styles.modalDescription}>Для безопасности, пожалуйста, введите ваш текущий пароль.</Text>
+                    <View style={styles.modalInputContainer}>
                         <Lock color="#8B8E98" size={20} />
                         <TextInput 
-                            className="flex-1 ml-3 text-white text-base"
+                            style={styles.input}
                             placeholder="Текущий пароль"
                             placeholderTextColor="#52525B"
                             value={currentPassword}
                             onChangeText={setCurrentPassword}
                             secureTextEntry={!showCurrentPassword}
                         />
-                        <TouchableOpacity onPress={() => setShowCurrentPassword(!showCurrentPassword)} className="p-2">
+                        <TouchableOpacity onPress={() => setShowCurrentPassword(!showCurrentPassword)} style={styles.closeButton}>
                             {showCurrentPassword ? (
                                 <EyeOff color="#8B8E98" size={20} />
                             ) : (
@@ -313,29 +313,32 @@ export default function EditProfileScreen() {
                     <TouchableOpacity 
                         onPress={verifyPassword}
                         disabled={loading || !currentPassword}
-                        className={`w-full h-14 rounded-xl items-center justify-center ${loading || !currentPassword ? 'bg-surface' : 'bg-primary'}`}
+                        style={[
+                            styles.modalButton,
+                            loading || !currentPassword ? styles.buttonDisabled : styles.buttonEnabled
+                        ]}
                     >
                         {loading ? (
-                            <Loader2 size={24} color="white" className="animate-spin" />
+                            <Loader2 size={24} color="white" />
                         ) : (
-                            <Text className={`font-bold text-lg ${loading || !currentPassword ? 'text-muted' : 'text-white'}`}>Далее</Text>
+                            <Text style={loading || !currentPassword ? styles.buttonTextDisabled : styles.buttonTextEnabled}>Далее</Text>
                         )}
                     </TouchableOpacity>
                 </View>
             ) : (
                 <View>
-                    <Text className="text-muted mb-4">Придумайте новый надежный пароль для вашего аккаунта.</Text>
-                    <View className="bg-surface rounded-xl flex-row items-center px-4 py-3 border border-white/5 mb-6">
+                    <Text style={styles.modalDescription}>Придумайте новый надежный пароль для вашего аккаунта.</Text>
+                    <View style={styles.modalInputContainer}>
                         <Lock color="#8B8E98" size={20} />
                         <TextInput 
-                            className="flex-1 ml-3 text-white text-base"
+                            style={styles.input}
                             placeholder="Новый пароль"
                             placeholderTextColor="#52525B"
                             value={newPassword}
                             onChangeText={setNewPassword}
                             secureTextEntry={!showNewPassword}
                         />
-                        <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} className="p-2">
+                        <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} style={styles.closeButton}>
                             {showNewPassword ? (
                                 <EyeOff color="#8B8E98" size={20} />
                             ) : (
@@ -346,20 +349,250 @@ export default function EditProfileScreen() {
                     <TouchableOpacity 
                         onPress={updatePassword}
                         disabled={loading || !newPassword}
-                        className={`w-full h-14 rounded-xl items-center justify-center ${loading || !newPassword ? 'bg-surface' : 'bg-primary'}`}
+                        style={[
+                            styles.modalButton,
+                            loading || !newPassword ? styles.buttonDisabled : styles.buttonEnabled
+                        ]}
                     >
                         {loading ? (
-                            <Loader2 size={24} color="white" className="animate-spin" />
+                            <Loader2 size={24} color="white" />
                         ) : (
-                            <Text className={`font-bold text-lg ${loading || !newPassword ? 'text-muted' : 'text-white'}`}>Сохранить</Text>
+                            <Text style={loading || !newPassword ? styles.buttonTextDisabled : styles.buttonTextEnabled}>Сохранить</Text>
                         )}
                     </TouchableOpacity>
                 </View>
             )}
-            <View className="h-6" /> 
+            <View style={styles.bottomSpacer} /> 
           </View>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0E1A',
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#1A1F2E',
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  avatarContainer: {
+    width: 112,
+    height: 112,
+    backgroundColor: '#1A1F2E',
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cameraOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarHint: {
+    color: '#9CA3AF',
+    fontSize: 14,
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    color: 'white',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  inputContainer: {
+    backgroundColor: '#1A1F2E',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  input: {
+    flex: 1,
+    marginLeft: 12,
+    color: 'white',
+    fontSize: 16,
+  },
+  passwordButton: {
+    backgroundColor: '#1A1F2E',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  passwordButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordButtonText: {
+    marginLeft: 12,
+    color: 'white',
+    fontSize: 16,
+  },
+  changeText: {
+    color: '#FF6B00',
+    fontWeight: 'bold',
+  },
+  paymentSection: {
+    marginBottom: 32,
+    opacity: 0.5,
+  },
+  paymentContainer: {
+    backgroundColor: '#1A1F2E',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  paymentText: {
+    marginLeft: 12,
+    color: '#9CA3AF',
+    fontSize: 16,
+  },
+  footer: {
+    padding: 24,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: '#0A0E1A',
+  },
+  saveButton: {
+    width: '100%',
+    backgroundColor: '#FF6B00',
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  saveButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#1A1F2E',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  closeButton: {
+    padding: 8,
+  },
+  modalDescription: {
+    color: '#9CA3AF',
+    marginBottom: 16,
+  },
+  modalInputContainer: {
+    backgroundColor: '#1A1F2E',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 24,
+  },
+  modalButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#1A1F2E',
+  },
+  buttonEnabled: {
+    backgroundColor: '#FF6B00',
+  },
+  buttonTextDisabled: {
+    color: '#9CA3AF',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  buttonTextEnabled: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  bottomSpacer: {
+    height: 24,
+  },
+});

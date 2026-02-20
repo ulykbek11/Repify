@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { PlayCircle, Dumbbell, Target, ChevronRight, Activity, X, AlertCircle } from 'lucide-react-native';
+import { PlayCircle, Dumbbell, Target, ChevronRight, Activity, AlertCircle } from 'lucide-react-native';
 import { supabase, DEV_MODE } from '../lib/supabase';
+import { API_URL } from '../config';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [showCalibrationBanner, setShowCalibrationBanner] = useState(false);
-  const [calibrationData, setCalibrationData] = useState(null);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
     checkCalibrationStatus();
@@ -23,70 +24,44 @@ export default function HomeScreen() {
 
   const checkCalibrationStatus = async () => {
     try {
-      // Skip Supabase calls in DEV_MODE
       if (DEV_MODE) {
         console.log('[HomeScreen] DEV_MODE enabled - skipping calibration check');
-        setShowCalibrationBanner(false);
+        setShowCalibrationBanner(true); // Always show in dev mode for testing
+        setUserId('dev-user-123');
         return;
       }
 
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const metadata = user.user_metadata || {};
-        const calibrated = metadata.calibrated;
-        const reminderCount = metadata.calibration_reminder_count || 0;
+      if (!user) {
+        console.log('[HomeScreen] No user found');
+        return;
+      }
 
-        console.log('[HomeScreen] Calibration check:', {
-          calibrated,
-          reminderCount,
-          hasMetadata: !!metadata,
-          metadata
-        });
+      setUserId(user.id);
 
-        // IMPORTANT: Show banner ONLY if calibrated === false (user skipped or not completed)
-        // If calibrated === true, user completed calibration successfully
-        // If calibrated field doesn't exist, it's a new user who hasn't seen calibration screen yet
-        if (calibrated === false && reminderCount < 3) {
-          console.log('[HomeScreen] Showing calibration banner');
-          setShowCalibrationBanner(true);
-          setCalibrationData({ reminderCount });
-        } else {
-          console.log('[HomeScreen] Hiding calibration banner', {
-            reason: calibrated === true ? 'completed' : calibrated === undefined ? 'new user' : 'dismissed too many times'
-          });
-          setShowCalibrationBanner(false);
+      const isCalibrated = user.user_metadata?.calibrated === true;
+      console.log('[HomeScreen] Calibration status (metadata):', isCalibrated);
+
+      let profileExists = false;
+      try {
+        const profileResponse = await fetch(`${API_URL}/api/profile/${user.id}/exists`);
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          profileExists = profileData?.exists === true;
         }
-      }
-    } catch (error) {
-      console.error('Error checking calibration status:', error);
-    }
-  };
-
-  const dismissCalibrationBanner = async () => {
-    try {
-      if (DEV_MODE) {
-        setShowCalibrationBanner(false);
-        return;
+      } catch (profileError) {
+        console.error('[HomeScreen] Profile existence check failed:', profileError);
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const currentCount = user.user_metadata?.calibration_reminder_count || 0;
-        await supabase.auth.updateUser({
-          data: {
-            calibration_reminder_count: currentCount + 1
-          }
-        });
-      }
-      setShowCalibrationBanner(false);
+      const needsCalibration = !isCalibrated || !profileExists;
+      setShowCalibrationBanner(needsCalibration);
     } catch (error) {
-      console.error('Error dismissing banner:', error);
-      setShowCalibrationBanner(false);
+      console.error('[HomeScreen] Error in checkCalibrationStatus:', error);
     }
   };
 
   const goToCalibration = () => {
-    setShowCalibrationBanner(false);
     navigation.navigate('Calibration');
   };
 
@@ -151,14 +126,11 @@ export default function HomeScreen() {
               <View style={styles.bannerHeader}>
                 <View style={styles.bannerTitleRow}>
                   <AlertCircle color="#FF6B00" size={24} />
-                  <Text style={styles.bannerTitle}>Пройдите калибровку</Text>
+                  <Text style={styles.bannerTitle}>Необходима калибровка</Text>
                 </View>
-                <TouchableOpacity onPress={dismissCalibrationBanner} style={styles.bannerDismiss}>
-                  <X color="#8B8E98" size={20} />
-                </TouchableOpacity>
               </View>
               <Text style={styles.bannerText}>
-                Калибровка поможет нам точнее оценивать вашу технику, учитывая ваши индивидуальные пропорции.
+                Калибровка позволит программе оценить ваши уникальные рычаги, пропорции тела и генетику, чтобы в дальнейшем обеспечить максимально точный анализ техники упражнений.
               </Text>
               <TouchableOpacity
                 onPress={goToCalibration}

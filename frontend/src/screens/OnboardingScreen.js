@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Check, Ruler, Weight, Activity, Target } from 'lucide-react-native';
+import { ArrowLeft, Check, Ruler, Weight, Activity } from 'lucide-react-native';
 import { CustomAlert } from '../components/CustomAlert';
 
 export default function OnboardingScreen() {
@@ -114,14 +114,19 @@ export default function OnboardingScreen() {
   const SelectOption = ({ label, selected, onPress }) => (
     <TouchableOpacity 
       onPress={onPress}
-      className={`px-4 py-2 rounded-xl border mr-2 mb-2 ${selected ? 'bg-primary border-primary' : 'bg-surface border-white/5'}`}
+      style={[
+        styles.optionButton,
+        selected ? styles.optionButtonActive : styles.optionButtonInactive
+      ]}
     >
-      <Text className={`${selected ? 'text-white' : 'text-muted'} font-medium`}>{label}</Text>
+      <Text style={[styles.optionText, selected ? styles.textActive : styles.textInactive]}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-background px-8">
+    <SafeAreaView style={styles.container}>
       <CustomAlert 
         visible={alertVisible}
         title={alertConfig.title}
@@ -130,29 +135,29 @@ export default function OnboardingScreen() {
         onClose={alertConfig.onConfirm}
       />
 
-       <View className="flex-row items-center px-6 py-4">
+       <View style={styles.header}>
         <TouchableOpacity 
           onPress={() => navigation.goBack()}
-          className="w-10 h-10 bg-surface rounded-full items-center justify-center border border-white/5 mr-4"
+          style={styles.backButton}
         >
           <ArrowLeft color="white" size={20} />
         </TouchableOpacity>
-        <Text className="text-white text-xl font-bold">Настройка профиля</Text>
+        <Text style={styles.headerTitle}>Настройка профиля</Text>
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
-      <ScrollView className="flex-1 px-6">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex: 1}}>
+      <ScrollView style={styles.content} contentContainerStyle={{paddingBottom: 40}}>
         
-        <Text className="text-muted mb-6">Ответьте на несколько вопросов, чтобы мы составили для вас идеальный план.</Text>
+        <Text style={styles.subtitle}>Ответьте на несколько вопросов, чтобы мы составили для вас идеальный план.</Text>
 
         {/* Height & Weight */}
-        <View className="flex-row space-x-4 mb-6">
-          <View className="flex-1">
-            <Text className="text-white font-semibold mb-2 ml-1">Рост (см)</Text>
-            <View className="bg-surface rounded-2xl flex-row items-center px-4 py-3 border border-white/5">
+        <View style={styles.row}>
+          <View style={styles.halfInput}>
+            <Text style={styles.label}>Рост (см)</Text>
+            <View style={styles.inputContainer}>
               <Ruler color="#8B8E98" size={20} />
               <TextInput
-                className="flex-1 ml-3 text-white text-base"
+                style={styles.input}
                 placeholder="175"
                 placeholderTextColor="#555"
                 keyboardType="numeric"
@@ -161,12 +166,12 @@ export default function OnboardingScreen() {
               />
             </View>
           </View>
-          <View className="flex-1">
-            <Text className="text-white font-semibold mb-2 ml-1">Вес (кг)</Text>
-            <View className="bg-surface rounded-2xl flex-row items-center px-4 py-3 border border-white/5">
+          <View style={styles.halfInput}>
+            <Text style={styles.label}>Вес (кг)</Text>
+            <View style={styles.inputContainer}>
               <Weight color="#8B8E98" size={20} />
               <TextInput
-                className="flex-1 ml-3 text-white text-base"
+                style={styles.input}
                 placeholder="70"
                 placeholderTextColor="#555"
                 keyboardType="numeric"
@@ -178,18 +183,18 @@ export default function OnboardingScreen() {
         </View>
 
         {/* Gender */}
-        <View className="mb-6">
-          <Text className="text-white font-semibold mb-3 ml-1">Пол</Text>
-          <View className="flex-row flex-wrap">
+        <View style={styles.section}>
+          <Text style={styles.label}>Пол</Text>
+          <View style={styles.optionsRow}>
             <SelectOption label="Мужской" selected={gender === 'male'} onPress={() => setGender('male')} />
             <SelectOption label="Женский" selected={gender === 'female'} onPress={() => setGender('female')} />
           </View>
         </View>
 
         {/* Goal */}
-        <View className="mb-6">
-          <Text className="text-white font-semibold mb-3 ml-1">Ваша цель</Text>
-          <View className="flex-row flex-wrap">
+        <View style={styles.section}>
+          <Text style={styles.label}>Ваша цель</Text>
+          <View style={styles.optionsRow}>
             <SelectOption label="Набор массы" selected={goal === 'muscle_gain'} onPress={() => setGoal('muscle_gain')} />
             <SelectOption label="Похудение" selected={goal === 'weight_loss'} onPress={() => setGoal('weight_loss')} />
             <SelectOption label="Поддержание" selected={goal === 'maintenance'} onPress={() => setGoal('maintenance')} />
@@ -197,9 +202,9 @@ export default function OnboardingScreen() {
         </View>
 
         {/* Level */}
-        <View className="mb-8">
-          <Text className="text-white font-semibold mb-3 ml-1">Уровень подготовки</Text>
-          <View className="flex-row flex-wrap">
+        <View style={styles.section}>
+          <Text style={styles.label}>Уровень подготовки</Text>
+          <View style={styles.optionsRow}>
             <SelectOption label="Новичок" selected={level === 'beginner'} onPress={() => setLevel('beginner')} />
             <SelectOption label="Средний" selected={level === 'intermediate'} onPress={() => setLevel('intermediate')} />
             <SelectOption label="Продвинутый" selected={level === 'advanced'} onPress={() => setLevel('advanced')} />
@@ -209,16 +214,14 @@ export default function OnboardingScreen() {
         <TouchableOpacity
           onPress={handleFinish}
           disabled={loading}
-          className={`w-full py-4 rounded-2xl flex-row justify-center items-center ${
-            loading ? 'bg-primary/50' : 'bg-primary'
-          } mb-8`}
+          style={[styles.finishButton, loading && styles.buttonDisabled]}
         >
           {loading ? (
-            <Activity color="white" className="mr-2" />
+            <Activity color="white" style={{marginRight: 8}} />
           ) : (
-            <Check color="white" className="mr-2" />
+            <Check color="white" style={{marginRight: 8}} />
           )}
-          <Text className="text-white font-bold text-lg">
+          <Text style={styles.finishButtonText}>
             {loading ? 'Создание аккаунта...' : 'Завершить регистрацию'}
           </Text>
         </TouchableOpacity>
@@ -228,3 +231,122 @@ export default function OnboardingScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0E1A',
+    paddingHorizontal: 0,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#1A1F2E',
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    marginRight: 16,
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  subtitle: {
+    color: '#8B8E98',
+    marginBottom: 24,
+    fontSize: 14,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+  },
+  halfInput: {
+    flex: 1,
+  },
+  label: {
+    color: 'white',
+    fontWeight: '600',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  inputContainer: {
+    backgroundColor: '#1A1F2E',
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  input: {
+    flex: 1,
+    marginLeft: 12,
+    color: 'white',
+    fontSize: 16,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  optionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  optionButtonActive: {
+    backgroundColor: '#FF6B00',
+    borderColor: '#FF6B00',
+  },
+  optionButtonInactive: {
+    backgroundColor: '#1A1F2E',
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  optionText: {
+    fontWeight: '500',
+  },
+  textActive: {
+    color: 'white',
+  },
+  textInactive: {
+    color: '#8B8E98',
+  },
+  finishButton: {
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FF6B00',
+    marginBottom: 32,
+  },
+  buttonDisabled: {
+    backgroundColor: 'rgba(255,107,0,0.5)',
+  },
+  finishButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+});

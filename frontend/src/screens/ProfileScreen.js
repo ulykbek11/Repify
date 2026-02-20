@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, RefreshControl, Switch, Modal, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Settings, LogOut, ChevronRight, Calendar, TrendingUp, BookOpen, User as UserIcon, Bell, Crown, HelpCircle, X, Check } from 'lucide-react-native';
+import { Settings, LogOut, ChevronRight, Calendar, TrendingUp, BookOpen, User as UserIcon, Bell, Crown, HelpCircle, X, Check, RotateCcw } from 'lucide-react-native';
 import { supabase, DEV_MODE } from '../lib/supabase';
 
 export default function ProfileScreen() {
@@ -212,6 +212,19 @@ export default function ProfileScreen() {
                 <UserIcon color="#3B82F6" size={20} />
               </View>
               <Text style={styles.menuItemText}>Мои данные</Text>
+            </View>
+            <ChevronRight color="#8B8E98" size={20} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Calibration')}
+            style={styles.menuItem}
+          >
+            <View style={styles.menuItemLeft}>
+              <View style={[styles.menuIcon, styles.menuIconPrimary]}>
+                <RotateCcw color="#FF6B00" size={20} />
+              </View>
+              <Text style={styles.menuItemText}>Перепройти калибровку</Text>
             </View>
             <ChevronRight color="#8B8E98" size={20} />
           </TouchableOpacity>

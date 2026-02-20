@@ -3,9 +3,17 @@ node_modules/
 dist/
 web-build/
 *.log
+.env
+venv/
+env/
+.vscode/
+.idea/
+.DS_Store
 ML/
 MotionIQ/
 __pycache__/
 *.pkl
 *.h5
 *.zip
+*.db
+*.sqlite
