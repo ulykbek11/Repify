@@ -232,7 +232,7 @@ export const BioMechanicsEngine = {
         };
       }
 
-      console.log('🔢 Calling backend API for rep counting...');
+      console.log('🔢 Sending to count-reps:', poseSequence.length);
       const repCountResponse = await fetchWithTimeout(
         `${API_URL}/api/count-reps?ts=${requestTs}`,
         {

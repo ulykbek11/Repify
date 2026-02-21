@@ -1,15 +1,27 @@
 """
 Анализатор техники упражнений.
 
-Сравнивает текущую технику пользователя с его ЛИЧНЫМ baseline
-из калибровочного профиля. Не использует универсальные стандарты —
-каждый человек оценивается относительно своей анатомии.
+Камера снимает СБОКУ — поэтому анализируются ТОЛЬКО показатели,
+видимые в сагиттальной (боковой) плоскости:
+  ✅ Knee angle       — угол колена (глубина)
+  ✅ Hip angle        — угол таза
+  ✅ Spine flexion    — сгибание спины (rohanx01: изменение длины плечо→таз)
+  ✅ Knee forward     — колени за носками (rohanx01: arctan метод)
+  ✅ Squat depth      — достаточная глубина
+  ✅ Torso lean       — наклон корпуса вперёд
 
-Приседания: глубина, наклон, симметрия, вальгус, баланс.
-Становая тяга: спина, позиция штанги, плечи, бёдра, траектория.
+  ❌ Knee valgus      — невидимо сбоку
+  ❌ Balance / CoM    — ненадёжно сбоку
+
+Использует LEFT сторону тела (left_hip, left_knee, left_ankle)
+как основную — оптимально для съёмки сбоку.
+
+Работает как С калибровочным профилем (персонализированные пороги),
+так и БЕЗ него (универсальные пороги из rohanx01 / SquatUniversity).
 """
 
 import logging
+import math
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -18,43 +30,54 @@ from app.models.calibration import CalibrationProfile
 from app.utils.pose_math import (
     calculate_torso_lean,
     calculate_back_angle,
+    get_knee_angle,
+    get_hip_angle,
     get_average_knee_angle,
     get_average_hip_angle,
-    get_knee_angle,
-    check_knee_valgus,
-    check_knees_over_toes,
-    calculate_symmetry,
-    is_balance_stable,
-    get_bar_position_estimate,
     midpoint,
-    detect_heel_rise,
+    distance_3d,
 )
 
 
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Универсальные пороги (без калибровки)
+# rohanx01 / SquatUniversity / LearnOpenCV
+# =============================================================================
+
+# Приседания — универсальные
+SQUAT_DEPTH_GOOD      = 100.0   # knee_angle < 100° = параллель и ниже ✅
+SQUAT_DEPTH_PARTIAL   = 120.0   # 100–120° = частичное приседание
+SQUAT_DEPTH_SHALLOW   = 140.0   # > 140° = недосед
+SQUAT_STANDING        = 155.0   # > 155° = стоит
+
+TORSO_LEAN_MAX        = 45.0    # > 45° = чрезмерный наклон вперёд
+TORSO_LEAN_CRITICAL   = 60.0    # > 60° = критический наклон
+
+SPINE_FLEX_THRESHOLD  = 0.88    # Если текущая длина спины < 88% от стоячей → сгибание
+KNEE_FORWARD_ANGLE    = 44.0    # rohanx01: если arctan угол < 44° → колено выдвинуто
+HIP_KNEE_AWESOME      = 20.0    # rohanx01: если hip-knee angle < 20° → отличная глубина
+
+# Становая тяга — универсальные
+DL_BACK_MIN           = 150.0   # back_angle < 150° = округление спины
+DL_HIP_HINGE_MAX      = 70.0    # torso_lean > 70° = чрезмерный наклон
+
+
 class TechniqueAnalyzer:
     """
-    Анализатор техники с персонализацией.
+    Анализатор техники упражнений.
 
-    Требует калибровочный профиль. Сравнивает текущее выполнение
-    с личными baseline-показателями пользователя.
+    Работает с калибровочным профилем и без него.
+    Использует LEFT сторону тела для расчётов (боковая съёмка).
     """
 
     @staticmethod
     def _extract_landmarks(
         landmarks: Dict[str, Any]
     ) -> Dict[str, Dict[str, float]]:
-        """
-        Преобразует landmarks из формата Pydantic в простой словарь.
-
-        Args:
-            landmarks: Точки MediaPipe.
-
-        Returns:
-            Словарь {name: {x, y, z}}.
-        """
+        """Конвертирует landmarks из Pydantic/dict в простой словарь {name: {x,y,z}}."""
         result = {}
         for name, point in landmarks.items():
             if hasattr(point, "x"):
@@ -69,189 +92,216 @@ class TechniqueAnalyzer:
                 result[name] = {"x": 0.0, "y": 0.0, "z": 0.0}
         return result
 
-    @classmethod
-    def _analyze_squat(
-        cls,
-        landmarks: Dict[str, Dict[str, float]],
-        profile: CalibrationProfile,
+    # =========================================================================
+    # Вспомогательные методы — rohanx01 алгоритмы
+    # =========================================================================
+
+    @staticmethod
+    def _spine_flexion(
+        lm: Dict[str, Dict[str, float]],
+        reference_spine_length: Optional[float],
     ) -> Dict[str, Any]:
         """
-        Анализ техники приседаний.
+        rohanx01 `back_slacking`: сравнивает текущую длину позвоночника
+        (середина_плеч → середина_бёдер) с эталоном стоячей позиции.
 
-        Проверки:
-        1. Глубина: knee_angle vs natural_squat_depth (±15°)
-        2. Наклон корпуса: torso_lean vs natural_torso_lean (±10°)
-        3. Симметрия: разница лево/право (< max_asymmetry)
-        4. Колени за носками: knee.x ≈ ankle.x (±0.1)
-        5. Вальгус: расстояние между коленями >= между лодыжками
-        6. Баланс: центр масс над стопами
+        Если текущая длина < reference * SPINE_FLEX_THRESHOLD → сгибание.
+        """
+        mid_shoulder = midpoint(lm["left_shoulder"], lm["right_shoulder"])
+        mid_hip = midpoint(lm["left_hip"], lm["right_hip"])
+        current_length = distance_3d(mid_shoulder, mid_hip)
 
-        Args:
-            landmarks: 33 точки текущего кадра.
-            profile: Калибровочный профиль пользователя.
+        if reference_spine_length and reference_spine_length > 0:
+            ratio = current_length / reference_spine_length
+            flexion = ratio < SPINE_FLEX_THRESHOLD
+            severity = "high" if ratio < 0.80 else "medium"
+            reduction_pct = round((1.0 - ratio) * 100, 1)
+        else:
+            # Без эталона используем торс-наклон как прокси
+            torso_lean = calculate_torso_lean(lm)
+            flexion = torso_lean > TORSO_LEAN_MAX
+            severity = "high" if torso_lean > TORSO_LEAN_CRITICAL else "medium"
+            reduction_pct = 0.0
 
-        Returns:
-            Результат анализа с оценкой, ошибками и метриками.
+        print(f"   🦴 Spine: current_len={current_length:.4f}, ref={reference_spine_length}, flexion={flexion}")
+        return {"detected": flexion, "severity": severity, "reduction_pct": reduction_pct}
+
+    @staticmethod
+    def _knee_forward_check(lm: Dict[str, Dict[str, float]]) -> Dict[str, Any]:
+        """
+        rohanx01 `knee_over_toes`: колено выдвигается за носок.
+
+        Метод: `angle = |arctan2(hip.y - knee.y, hip.x - knee.x) * 180/pi|`
+        Если angle < KNEE_FORWARD_ANGLE (44°) И knee.x > foot_index.x → колено за носком.
+
+        Использует LEFT сторону (боковая камера).
+        """
+        try:
+            hip   = lm["left_hip"]
+            knee  = lm["left_knee"]
+            foot  = lm["left_foot_index"]
+
+            angle = abs(math.degrees(
+                math.atan2(hip["y"] - knee["y"], hip["x"] - knee["x"])
+            ))
+            # В боковой проекции left.x увеличивается вперёд (или назад — зависит от стороны)
+            knee_past_foot = knee["x"] > foot["x"]
+            detected = angle < KNEE_FORWARD_ANGLE and knee_past_foot
+
+            print(f"   👣 Knee forward: angle={angle:.1f}°, knee.x={knee['x']:.3f} > foot.x={foot['x']:.3f} → {detected}")
+            return {"detected": detected, "angle": round(angle, 1)}
+        except KeyError:
+            return {"detected": False, "angle": 0.0}
+
+    @staticmethod
+    def _depth_check(lm: Dict[str, Dict[str, float]], target_depth: float) -> Dict[str, Any]:
+        """
+        Проверяет глубину приседа по колену (LEFT сторона) и hip-knee углу (rohanx01).
+
+        rohanx01 `ensure_proper_depth`:
+            hip_knee_angle = |arctan2(hip.y - knee.y, hip.x - knee.x) * 180/pi|
+            Если < 20° → «Awesome Depth»
+
+        Комбинируем с joint angle для надёжности.
+        """
+        try:
+            knee_angle = get_knee_angle(lm, "left")
+
+            hip  = lm["left_hip"]
+            knee = lm["left_knee"]
+            hip_knee_angle = abs(math.degrees(
+                math.atan2(hip["y"] - knee["y"], hip["x"] - knee["x"])
+            ))
+
+            awesome_depth = hip_knee_angle < HIP_KNEE_AWESOME
+
+            if knee_angle < SQUAT_DEPTH_GOOD:
+                status = "excellent"
+                issue = False
+            elif knee_angle < SQUAT_DEPTH_PARTIAL:
+                status = "partial"
+                issue = knee_angle > target_depth + 10
+            elif knee_angle < SQUAT_DEPTH_SHALLOW:
+                status = "shallow"
+                issue = True
+            else:
+                status = "standing"
+                issue = False  # Ещё не приседал — не считаем ошибкой
+
+            print(f"   📐 Depth: knee={knee_angle:.1f}°, hip_knee={hip_knee_angle:.1f}°, awesome={awesome_depth}, status={status}")
+            return {
+                "knee_angle": round(knee_angle, 1),
+                "hip_knee_angle": round(hip_knee_angle, 1),
+                "awesome_depth": awesome_depth,
+                "status": status,
+                "issue": issue,
+            }
+        except KeyError:
+            return {"knee_angle": 180.0, "status": "standing", "issue": False, "awesome_depth": False, "hip_knee_angle": 90.0}
+
+    @staticmethod
+    def _torso_lean_check(lm: Dict[str, Dict[str, float]], max_lean: float) -> Dict[str, Any]:
+        """Угол наклона корпуса от вертикали. > max_lean = ошибка."""
+        try:
+            lean = calculate_torso_lean(lm)
+            detected = lean > max_lean
+            severity = "high" if lean > max_lean + 15 else "medium"
+            print(f"   🏋️  Torso lean: {lean:.1f}° (max={max_lean}°), detected={detected}")
+            return {"detected": detected, "angle": round(lean, 1), "severity": severity}
+        except KeyError:
+            return {"detected": False, "angle": 0.0, "severity": "low"}
+
+    # =========================================================================
+    # Основные методы анализа
+    # =========================================================================
+
+    @classmethod
+    def _analyze_squat_universal(
+        cls,
+        lm: Dict[str, Dict[str, float]],
+        reference_spine_length: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Анализ приседания БЕЗ калибровки.
+
+        Универсальные пороги + rohanx01 алгоритмы.
+        Проверяет только то, что ВИДНО при боковой съёмке.
         """
         errors: List[Dict[str, Any]] = []
         penalty = 0.0
 
-        baseline = profile.baseline_metrics
-        safe = profile.safe_ranges
+        knee_angle = get_knee_angle(lm, "left")
+        hip_angle  = get_hip_angle(lm,  "left")
+        torso_lean = calculate_torso_lean(lm)
 
-        # === Текущие метрики ===
-        knee_angle = get_average_knee_angle(landmarks)
-        torso_lean = calculate_torso_lean(landmarks)
-        hip_angle = get_average_hip_angle(landmarks)
-        symmetry = calculate_symmetry(landmarks, "knee")
+        print(f"   📊 Left knee={knee_angle:.1f}°, hip={hip_angle:.1f}°, torso={torso_lean:.1f}°")
 
-        natural_depth = baseline.get("natural_squat_depth", 90.0)
-        natural_lean = baseline.get("natural_torso_lean", 30.0)
+        # Анализируем только во время приседа (не в стойке)
+        in_squat_phase = knee_angle < SQUAT_STANDING
 
-        # === 1. Глубина приседа ===
-        depth_min = safe.get("depth_min", natural_depth - 15)
-        depth_max = safe.get("depth_max", natural_depth + 15)
+        # === 1. Spine flexion (rohanx01 back_slacking) ===
+        spine = cls._spine_flexion(lm, reference_spine_length)
+        if spine["detected"] and in_squat_phase:
+            penalty += 0.20 if spine["severity"] == "high" else 0.12
+            reduction_msg = f" (укорочение {spine['reduction_pct']}%)" if spine["reduction_pct"] > 0 else ""
+            errors.append({
+                "error_type": "spine_flexion",
+                "severity": spine["severity"],
+                "message": (
+                    f"Сгибание спины{reduction_msg}. "
+                    "Держите грудь вперёд, взгляд прямо. "
+                    "Работайте над укреплением разгибателей позвоночника."
+                ),
+            })
 
-        # Проверяем только если пользователь в фазе приседа (колени согнуты)
-        if knee_angle < 140:
-            if knee_angle < depth_min - 10:
-                penalty += 0.15
-                errors.append({
-                    "error_type": "excessive_depth",
-                    "severity": "medium",
-                    "message": (
-                        f"Слишком глубоко ({knee_angle:.0f}°). "
-                        f"Ваш безопасный диапазон: {depth_min:.0f}-{depth_max:.0f}°"
-                    ),
-                    "current_value": round(knee_angle, 1),
-                    "expected_range": f"{depth_min:.0f}-{depth_max:.0f}°",
-                })
-            elif knee_angle > depth_max + 5:
-                # Недосед — пользователь не достигает своей целевой глубины
-                severity = "high" if knee_angle > depth_max + 20 else "medium"
-                penalty += 0.15 if severity == "high" else 0.12
-                errors.append({
-                    "error_type": "insufficient_depth",
-                    "severity": severity,
-                    "message": (
-                        f"Недостаточная глубина ({knee_angle:.0f}°). "
-                        f"Ваша цель: {natural_depth:.0f}° "
-                        f"(диапазон {depth_min:.0f}–{depth_max:.0f}°). "
-                        "Приседайте глубже: работайте над подвижностью голеностопа "
-                        "и укреплением ягодичных мышц."
-                    ),
-                    "current_value": round(knee_angle, 1),
-                    "expected_range": f"{depth_min:.0f}–{depth_max:.0f}°",
-                })
-
-        # === 2. Наклон корпуса ===
-        lean_min = safe.get("torso_lean_min", max(0, natural_lean - 10))
-        lean_max = safe.get("torso_lean_max", natural_lean + 10)
-
-        if torso_lean > lean_max + 5:
-            severity = "high" if torso_lean > lean_max + 15 else "medium"
-            penalty += 0.20 if severity == "high" else 0.10
+        # === 2. Torso lean ===
+        torso = cls._torso_lean_check(lm, TORSO_LEAN_MAX)
+        if torso["detected"] and in_squat_phase:
+            penalty += 0.20 if torso["severity"] == "high" else 0.10
             errors.append({
                 "error_type": "excessive_forward_lean",
-                "severity": severity,
+                "severity": torso["severity"],
                 "message": (
-                    f"Сильный наклон вперёд ({torso_lean:.0f}°). "
-                    f"Ваша норма: {natural_lean:.0f}° (±10°). "
-                    f"Возможно, слабые квадрицепсы или жёсткий голеностоп."
+                    f"Сильный наклон вперёд ({torso['angle']:.0f}°, норма < {TORSO_LEAN_MAX:.0f}°). "
+                    "Возможные причины: слабые квадрицепсы или ограниченная подвижность голеностопа. "
+                    "Работайте над растяжкой икроножных мышц."
                 ),
-                "current_value": round(torso_lean, 1),
-                "expected_range": f"{lean_min:.0f}-{lean_max:.0f}°",
             })
 
-        # === 3. Симметрия ===
-        max_asym = safe.get("max_asymmetry", 10.0)
-
-        if symmetry > max_asym:
-            severity = "high" if symmetry > max_asym * 1.5 else "medium"
+        # === 3. Squat depth ===
+        depth = cls._depth_check(lm, target_depth=SQUAT_DEPTH_GOOD)
+        if depth["issue"] and depth["status"] in ("shallow", "partial"):
+            severity = "high" if depth["status"] == "shallow" else "medium"
             penalty += 0.15 if severity == "high" else 0.08
             errors.append({
-                "error_type": "asymmetry",
+                "error_type": "insufficient_depth",
                 "severity": severity,
                 "message": (
-                    f"Асимметрия коленей: {symmetry:.1f}° "
-                    f"(допустимо до {max_asym:.0f}°). "
-                    f"Распределяйте вес равномерно."
+                    f"Недостаточная глубина ({depth['knee_angle']:.0f}°, цель < {SQUAT_DEPTH_GOOD:.0f}°). "
+                    "Приседайте до параллели бёдер с полом. "
+                    "Работайте над подвижностью голеностопа."
                 ),
-                "current_value": round(symmetry, 1),
-                "expected_range": f"< {max_asym:.0f}°",
             })
+        elif depth["awesome_depth"]:
+            print("   ✅ Отличная глубина!")
 
-        # === 4. Колени за носками ===
-        knees_over = check_knees_over_toes(landmarks, tolerance=0.1)
-        if any(knees_over.values()):
-            sides = [s for s, v in knees_over.items() if v]
+        # === 4. Knee forward (rohanx01 knee_over_toes) ===
+        knee_fwd = cls._knee_forward_check(lm)
+        if knee_fwd["detected"] and in_squat_phase:
             penalty += 0.08
             errors.append({
-                "error_type": "knees_over_toes",
+                "error_type": "knee_over_toes",
                 "severity": "low",
                 "message": (
-                    f"Колени выходят за носки ({', '.join(sides)}). "
-                    f"Отводите таз назад при приседании."
+                    "Колено выходит за носок. "
+                    "Отводите таз назад при приседании, "
+                    "удерживайте вес на пятках."
                 ),
-                "current_value": None,
-                "expected_range": "Колени на уровне носков",
             })
 
-        # === 5. Вальгус коленей ===
-        if check_knee_valgus(landmarks):
-            valgus_tendency = baseline.get("knee_valgus_tendency", False)
-            severity = "medium" if valgus_tendency else "high"
-            penalty += 0.12 if severity == "high" else 0.08
-            message = (
-                "Колени заваливаются внутрь. Разводите колени наружу по направлению стоп."
-            )
-            if valgus_tendency:
-                message += " (Это ваша природная склонность — работайте над укреплением ягодичных.)"
-            errors.append({
-                "error_type": "knee_valgus",
-                "severity": severity,
-                "message": message,
-                "current_value": None,
-                "expected_range": "Колени над стопами",
-            })
+        # === Финальный score ===
+        score = round(max(0.0, min(1.0, 1.0 - penalty)), 2)
 
-        # === 6. Баланс ===
-        if not is_balance_stable(landmarks, tolerance=0.15):
-            penalty += 0.05
-            errors.append({
-                "error_type": "balance",
-                "severity": "low",
-                "message": "Небольшое отклонение баланса. Контролируйте центр тяжести.",
-                "current_value": None,
-                "expected_range": "Центр масс над стопами",
-            })
-
-        # === 7. Отрыв пяток ===
-        # Определяем только в фазе приседа, чтобы не ложно срабатывать в стойке
-        if knee_angle < 140:
-            standing_heel_drop = baseline.get("standing_heel_drop", 0.01)
-            heel = detect_heel_rise(landmarks, standing_heel_drop)
-            if heel["left"] or heel["right"]:
-                lifted_sides = [s for s in ("left", "right") if heel[s]]
-                max_lift = max(heel.get("left_lift", 0.0), heel.get("right_lift", 0.0))
-                severity = "high" if max_lift > 0.06 else "medium"
-                penalty += 0.18 if severity == "high" else 0.12
-                errors.append({
-                    "error_type": "heel_rise",
-                    "severity": severity,
-                    "message": (
-                        f"Отрыв пяток ({', '.join(lifted_sides)}). "
-                        "Ограниченная подвижность голеностопа или слабые разгибатели бедра. "
-                        "Используйте подпятники или работайте над растяжкой икроножных мышц."
-                    ),
-                    "current_value": round(max_lift, 3),
-                    "expected_range": "Пятки плотно на полу",
-                })
-
-        # === Финальная оценка ===
-        score = max(0.0, min(1.0, 1.0 - penalty))
-
-        # === Фидбэк ===
         if score >= 0.9:
             feedback = "Отличная техника! ✅"
         elif score >= 0.75:
@@ -259,63 +309,163 @@ class TechniqueAnalyzer:
         elif score >= 0.5:
             feedback = "Есть ошибки, требуется коррекция ⚠️"
         else:
-            feedback = "Серьёзные ошибки в технике! Скорректируйте выполнение ❌"
+            feedback = "Серьёзные ошибки в технике! ❌"
 
+        print(f"   🎯 Score: {score} ({len(errors)} ошибок), feedback: {feedback}")
         return {
-            "technique_score": round(score, 2),
+            "technique_score": score,
             "errors": errors,
             "feedback": feedback,
             "metrics": {
                 "knee_angle": round(knee_angle, 1),
-                "hip_angle": round(hip_angle, 1),
+                "hip_angle":  round(hip_angle, 1),
                 "torso_angle": round(torso_lean, 1),
                 "back_angle": None,
-                "symmetry": round(symmetry, 1),
+                "symmetry": None,
+            },
+        }
+
+    @classmethod
+    def _analyze_squat(
+        cls,
+        lm: Dict[str, Dict[str, float]],
+        profile: CalibrationProfile,
+    ) -> Dict[str, Any]:
+        """
+        Анализ приседания С калибровочным профилем.
+
+        Персонализированные пороги из личного baseline + rohanx01 алгоритмы.
+        Только показатели, видимые при БОКОВОЙ съёмке.
+        """
+        errors: List[Dict[str, Any]] = []
+        penalty = 0.0
+
+        baseline = profile.baseline_metrics
+        safe     = profile.safe_ranges
+
+        knee_angle = get_knee_angle(lm, "left")
+        hip_angle  = get_hip_angle(lm, "left")
+        torso_lean = calculate_torso_lean(lm)
+
+        natural_depth = baseline.get("natural_squat_depth", SQUAT_DEPTH_GOOD)
+        natural_lean  = baseline.get("natural_torso_lean", TORSO_LEAN_MAX)
+        spine_ref     = baseline.get("reference_spine_length", None)
+
+        depth_min = safe.get("depth_min", natural_depth - 15)
+        depth_max = safe.get("depth_max", natural_depth + 15)
+        lean_max  = safe.get("torso_lean_max", natural_lean + 10)
+
+        print(f"   📊 [calibrated] Left knee={knee_angle:.1f}°, hip={hip_angle:.1f}°, torso={torso_lean:.1f}°")
+        print(f"   📏 Baseline: depth={natural_depth:.1f}°, lean={natural_lean:.1f}°")
+
+        in_squat_phase = knee_angle < SQUAT_STANDING
+
+        # === 1. Spine flexion (rohanx01) ===
+        spine = cls._spine_flexion(lm, spine_ref)
+        if spine["detected"] and in_squat_phase:
+            penalty += 0.20 if spine["severity"] == "high" else 0.12
+            errors.append({
+                "error_type": "spine_flexion",
+                "severity": spine["severity"],
+                "message": (
+                    f"Сгибание спины. Держите грудь вперёд, взгляд прямо."
+                ),
+            })
+
+        # === 2. Torso lean (персонализированный порог) ===
+        if torso_lean > lean_max + 5 and in_squat_phase:
+            severity = "high" if torso_lean > lean_max + 15 else "medium"
+            penalty += 0.20 if severity == "high" else 0.10
+            errors.append({
+                "error_type": "excessive_forward_lean",
+                "severity": severity,
+                "message": (
+                    f"Наклон вперёд ({torso_lean:.0f}°). "
+                    f"Ваша норма ≤ {lean_max:.0f}°. "
+                    "Возможно, слабые квадрицепсы или жёсткий голеностоп."
+                ),
+            })
+
+        # === 3. Squat depth ===
+        if in_squat_phase:
+            if knee_angle > 110.0:
+                severity = "high" if knee_angle > 125.0 else "medium"
+                penalty += 0.15 if severity == "high" else 0.10
+                errors.append({
+                    "error_type": "insufficient_depth",
+                    "severity": severity,
+                    "message": (
+                        f"Недостаточная глубина ({knee_angle:.0f}°). "
+                        "Приседайте ниже, до параллели бёдер с полом."
+                    ),
+                })
+
+        # === 4. Knee forward (rohanx01) ===
+        knee_fwd = cls._knee_forward_check(lm)
+        if knee_fwd["detected"] and in_squat_phase:
+            penalty += 0.08
+            errors.append({
+                "error_type": "knee_over_toes",
+                "severity": "low",
+                "message": "Колено выходит за носок. Отводите таз назад при приседании.",
+            })
+
+        score = round(max(0.0, min(1.0, 1.0 - penalty)), 2)
+
+        if score >= 0.9:
+            feedback = "Отличная техника! ✅"
+        elif score >= 0.75:
+            feedback = "Хорошая техника, небольшие замечания 💪"
+        elif score >= 0.5:
+            feedback = "Есть ошибки, требуется коррекция ⚠️"
+        else:
+            feedback = "Серьёзные ошибки в технике! ❌"
+
+        print(f"   🎯 [calibrated] Score={score}, errors={len(errors)}")
+        return {
+            "technique_score": score,
+            "errors": errors,
+            "feedback": feedback,
+            "metrics": {
+                "knee_angle": round(knee_angle, 1),
+                "hip_angle":  round(hip_angle, 1),
+                "torso_angle": round(torso_lean, 1),
+                "back_angle": None,
+                "symmetry": None,
             },
         }
 
     @classmethod
     def _analyze_deadlift(
         cls,
-        landmarks: Dict[str, Dict[str, float]],
-        profile: CalibrationProfile,
+        lm: Dict[str, Dict[str, float]],
+        profile: Optional[CalibrationProfile],
     ) -> Dict[str, Any]:
         """
-        Анализ техники становой тяги.
+        Анализ становой тяги — боковая съёмка.
 
-        Проверки:
-        1. Спина: back_angle прямая vs baseline
-        2. Позиция штанги: близко к голеням
-        3. Плечи: над штангой или чуть впереди
-        4. Бёдра: hip_angle vs natural_hip_hinge_angle
-        5. Колени: не выходят за носки в стартовой позиции
-        6. Траектория: штанга вертикально вдоль ног
-
-        Args:
-            landmarks: 33 точки текущего кадра.
-            profile: Калибровочный профиль пользователя.
-
-        Returns:
-            Результат анализа с оценкой, ошибками и метриками.
+        Проверяет: прямую спину, наклон корпуса, позицию бёдер.
         """
         errors: List[Dict[str, Any]] = []
         penalty = 0.0
 
-        baseline = profile.baseline_metrics
-        safe = profile.safe_ranges
+        back_angle = calculate_back_angle(lm)
+        torso_lean = calculate_torso_lean(lm)
+        hip_angle  = get_hip_angle(lm, "left")
+        knee_angle = get_knee_angle(lm, "left")
 
-        # === Текущие метрики ===
-        knee_angle = get_average_knee_angle(landmarks)
-        hip_angle = get_average_hip_angle(landmarks)
-        back_angle = calculate_back_angle(landmarks)
-        torso_lean = calculate_torso_lean(landmarks)
+        print(f"   📊 Deadlift: back={back_angle:.1f}°, torso={torso_lean:.1f}°, hip={hip_angle:.1f}°")
 
-        nat_back = baseline.get("natural_back_angle", 170.0)
-        nat_hip = baseline.get("natural_start_hip_angle", 80.0)
+        back_min  = DL_BACK_MIN
+        lean_max  = DL_HIP_HINGE_MAX
+        nat_hip   = 80.0
 
-        # === 1. Спина ===
-        back_min = safe.get("back_angle_min", 150.0)
+        if profile:
+            back_min  = profile.safe_ranges.get("back_angle_min", DL_BACK_MIN)
+            lean_max  = profile.safe_ranges.get("max_torso_lean", DL_HIP_HINGE_MAX)
+            nat_hip   = profile.baseline_metrics.get("natural_start_hip_angle", 80.0)
 
+        # === 1. Spine (back angle) ===
         if back_angle < back_min:
             deviation = back_min - back_angle
             severity = "high" if deviation > 15 else "medium"
@@ -324,121 +474,61 @@ class TechniqueAnalyzer:
                 "error_type": "rounded_back",
                 "severity": severity,
                 "message": (
-                    f"Округление спины ({back_angle:.0f}°). "
-                    f"Ваш безопасный минимум: {back_min:.0f}°. "
-                    f"Держите грудь вперёд и спину прямой!"
+                    f"Округление спины ({back_angle:.0f}°, норма > {back_min:.0f}°). "
+                    "Держите грудь вперёд и спину прямой!"
                 ),
-                "current_value": round(back_angle, 1),
-                "expected_range": f"> {back_min:.0f}°",
             })
 
-        # === 2. Позиция штанги (приблизительно по кистям) ===
-        bar_pos = get_bar_position_estimate(landmarks)
-        if bar_pos:
-            mid_ankle = midpoint(landmarks["left_ankle"], landmarks["right_ankle"])
-            bar_offset = abs(bar_pos["x"] - mid_ankle["x"])
-
-            if bar_offset > 0.08:
-                penalty += 0.10
-                errors.append({
-                    "error_type": "bar_too_far",
-                    "severity": "medium",
-                    "message": (
-                        "Штанга далеко от тела. "
-                        "Держите штангу максимально близко к голеням."
-                    ),
-                    "current_value": round(bar_offset, 3),
-                    "expected_range": "< 0.08 (нормализованные координаты)",
-                })
-
-        # === 3. Плечи над штангой ===
-        if bar_pos:
-            mid_shoulder = midpoint(
-                landmarks["left_shoulder"], landmarks["right_shoulder"]
-            )
-            # Плечи должны быть примерно над штангой или чуть впереди
-            shoulder_offset = mid_shoulder["x"] - bar_pos["x"]
-
-            if abs(shoulder_offset) > 0.1:
-                penalty += 0.08
-                direction = "далеко впереди" if shoulder_offset > 0 else "далеко позади"
-                errors.append({
-                    "error_type": "shoulder_position",
-                    "severity": "medium",
-                    "message": (
-                        f"Плечи {direction} штанги. "
-                        f"Плечи должны быть над штангой в начале тяги."
-                    ),
-                    "current_value": round(shoulder_offset, 3),
-                    "expected_range": "±0.1",
-                })
-
-        # === 4. Бёдра ===
-        hip_min = safe.get("hip_angle_min", nat_hip - 15)
-        hip_max = safe.get("hip_angle_max", nat_hip + 15)
-
-        if hip_angle < hip_min - 10:
-            penalty += 0.08
+        # === 2. Spine flexion (rohanx01) ===
+        spine = cls._spine_flexion(lm, None)
+        if spine["detected"]:
+            penalty += 0.15
             errors.append({
-                "error_type": "hips_too_low",
-                "severity": "medium",
-                "message": (
-                    f"Таз слишком низко ({hip_angle:.0f}°). "
-                    f"Ваша норма: {nat_hip:.0f}° (±15°). "
-                    f"Это не приседание — сохраняйте позицию тяги."
-                ),
-                "current_value": round(hip_angle, 1),
-                "expected_range": f"{hip_min:.0f}-{hip_max:.0f}°",
-            })
-        elif hip_angle > hip_max + 10:
-            penalty += 0.08
-            errors.append({
-                "error_type": "hips_too_high",
-                "severity": "medium",
-                "message": (
-                    f"Таз слишком высоко ({hip_angle:.0f}°). "
-                    f"Ваша норма: {nat_hip:.0f}° (±15°). "
-                    f"Слишком большая нагрузка на спину."
-                ),
-                "current_value": round(hip_angle, 1),
-                "expected_range": f"{hip_min:.0f}-{hip_max:.0f}°",
+                "error_type": "spine_flexion",
+                "severity": spine["severity"],
+                "message": "Горб в спине. Держите нейтральный позвоночник.",
             })
 
-        # === 5. Колени за носками ===
-        knees_over = check_knees_over_toes(landmarks, tolerance=0.08)
-        if any(knees_over.values()):
-            sides = [s for s, v in knees_over.items() if v]
-            penalty += 0.05
-            errors.append({
-                "error_type": "knees_over_toes",
-                "severity": "low",
-                "message": (
-                    f"Колени выходят за носки ({', '.join(sides)}). "
-                    f"В становой тяге голени близки к вертикали."
-                ),
-                "current_value": None,
-                "expected_range": "Голени вертикальны",
-            })
-
-        # === 6. Чрезмерный наклон ===
-        max_lean = safe.get("max_torso_lean", 70.0)
-        if torso_lean > max_lean:
+        # === 3. Torso lean ===
+        if torso_lean > lean_max:
             penalty += 0.10
             errors.append({
                 "error_type": "excessive_lean",
                 "severity": "medium",
                 "message": (
-                    f"Чрезмерный наклон корпуса ({torso_lean:.0f}°). "
-                    f"Ваш максимум: {max_lean:.0f}°."
+                    f"Чрезмерный наклон корпуса ({torso_lean:.0f}°, норма < {lean_max:.0f}°)."
                 ),
-                "current_value": round(torso_lean, 1),
-                "expected_range": f"< {max_lean:.0f}°",
             })
 
-        # === Финальная оценка ===
-        score = max(0.0, min(1.0, 1.0 - penalty))
+        # === 4. Бёдра (только с профилем) ===
+        if profile:
+            safe = profile.safe_ranges
+            hip_min = safe.get("hip_angle_min", nat_hip - 15)
+            hip_max = safe.get("hip_angle_max", nat_hip + 15)
 
-        # === Фидбэк ===
+            if hip_angle < hip_min - 10:
+                penalty += 0.08
+                errors.append({
+                    "error_type": "hips_too_low",
+                    "severity": "medium",
+                    "message": (
+                        f"Таз слишком низко ({hip_angle:.0f}°). "
+                        f"Норма: {nat_hip:.0f}° (±15°)."
+                    ),
+                })
+            elif hip_angle > hip_max + 10:
+                penalty += 0.08
+                errors.append({
+                    "error_type": "hips_too_high",
+                    "severity": "medium",
+                    "message": (
+                        f"Таз слишком высоко ({hip_angle:.0f}°). "
+                        f"Норма: {nat_hip:.0f}° (±15°)."
+                    ),
+                })
+
+        score = round(max(0.0, min(1.0, 1.0 - penalty)), 2)
+
         if score >= 0.9:
             feedback = "Отличная техника тяги! ✅"
         elif score >= 0.75:
@@ -448,18 +538,23 @@ class TechniqueAnalyzer:
         else:
             feedback = "Серьёзные ошибки! Риск травмы спины ❌"
 
+        print(f"   🎯 Deadlift score={score}, errors={len(errors)}")
         return {
-            "technique_score": round(score, 2),
+            "technique_score": score,
             "errors": errors,
             "feedback": feedback,
             "metrics": {
                 "knee_angle": round(knee_angle, 1),
-                "hip_angle": round(hip_angle, 1),
+                "hip_angle":  round(hip_angle, 1),
                 "torso_angle": round(torso_lean, 1),
                 "back_angle": round(back_angle, 1),
-                "symmetry": round(calculate_symmetry(landmarks, "hip"), 1),
+                "symmetry": None,
             },
         }
+
+    # =========================================================================
+    # Публичный API
+    # =========================================================================
 
     @classmethod
     def analyze(
@@ -468,27 +563,29 @@ class TechniqueAnalyzer:
         user_id: str,
         exercise_type: str,
         landmarks: Dict[str, Any],
+        reference_spine_length: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Анализирует технику одного кадра.
 
-        Требует предварительной калибровки — без неё возвращает ошибку 404.
+        Работает БЕЗ калибровки (universal thresholds) и С профилем.
+        Больше НЕ бросает ValueError при отсутствии профиля.
 
         Args:
-            db: Сессия базы данных.
+            db: Сессия БД.
             user_id: ID пользователя.
-            exercise_type: Тип упражнения.
-            landmarks: 33 точки MediaPipe текущего кадра.
-
-        Returns:
-            Результат анализа.
-
-        Raises:
-            ValueError: Если нет калибровочного профиля.
+            exercise_type: "squat" или "deadlift".
+            landmarks: 33 точки MediaPipe.
+            reference_spine_length: Длина позвоночника в стойке (для spine flexion).
         """
-        # Получаем калибровочный профиль
-        print(f">>> [SERVICE] TechniqueAnalyzer.analyze(): user={user_id}, exercise={exercise_type}, landmarks={len(landmarks)}")
-        print(">>> [SERVICE] Запрос к профилю калибровки...")
+        print(f"\n🔍 [TechniqueAnalyzer.analyze]")
+        print(f"   user={user_id}, exercise={exercise_type}")
+        print(f"   landmarks keys: {list(landmarks.keys())[:8]}... ({len(landmarks)} total)")
+
+        lm = cls._extract_landmarks(landmarks)
+        print(f"   ✅ Converted {len(lm)} landmarks")
+
+        # Ищем калибровочный профиль — если нет, работаем с universal thresholds
         profile = (
             db.query(CalibrationProfile)
             .filter(
@@ -497,27 +594,17 @@ class TechniqueAnalyzer:
             )
             .first()
         )
-        print(f">>> [SERVICE] Профиль найден: {profile is not None}")
-
-        if not profile:
-            raise ValueError(
-                f"Пройдите калибровку для {exercise_type}. "
-                f"Отправьте POST /api/calibration/start"
-            )
-
-        # Конвертируем landmarks
-        print(">>> [SERVICE] Конвертирую landmarks...")
-        lm = cls._extract_landmarks(landmarks)
-        print(f">>> [SERVICE] Конвертировано {len(lm)} точек")
+        print(f"   📋 Calibration profile: {'found' if profile else 'NOT found — using universal thresholds'}")
 
         if exercise_type == "squat":
-            print(">>> [SERVICE] Запускаю анализ приседания...")
-            result = cls._analyze_squat(lm, profile)
+            if profile:
+                result = cls._analyze_squat(lm, profile)
+            else:
+                result = cls._analyze_squat_universal(lm, reference_spine_length)
         elif exercise_type == "deadlift":
-            print(">>> [SERVICE] Запускаю анализ становой тяги...")
             result = cls._analyze_deadlift(lm, profile)
         else:
             raise ValueError(f"Неизвестный тип упражнения: {exercise_type}")
 
-        print(f">>> [SERVICE] Анализ завершён: score={result['technique_score']}, errors={len(result['errors'])}")
+        print(f"   ✅ Analysis done: score={result['technique_score']}, errors={len(result['errors'])}")
         return result

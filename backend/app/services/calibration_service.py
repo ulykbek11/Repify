@@ -159,6 +159,7 @@ class CalibrationService:
         femur_lengths: List[float] = []
         tibia_lengths: List[float] = []
         heel_drops: List[float] = []   # foot_index.y - heel.y в стойке (база для определения отрыва пятки)
+        spine_lengths: List[float] = []  # Длина позвоночника в стойке (для spine flexion)
 
         for rep_raw_frames in pose_sequence:
             # Конвертируем кадры
@@ -202,7 +203,16 @@ class CalibrationService:
                 femur_lengths.append(femur)
                 tibia_lengths.append(tibia)
 
-                # Базовое расстояние пятка→носок в стойке (для детекции отрыва пятки)
+                # Длина позвоночника в стойке (эталон для spine flexion detector)
+                try:
+                    mid_sh = midpoint(standing["left_shoulder"], standing["right_shoulder"])
+                    mid_hp = midpoint(standing["left_hip"], standing["right_hip"])
+                    spine_len = distance_3d(mid_sh, mid_hp)
+                    spine_lengths.append(spine_len)
+                except KeyError:
+                    pass
+
+                        # Базовое расстояние пятка→носок в стойке (для детекции отрыва пятки)
                 # В MediaPipe Y направлено вниз, поэтому foot_index.y > heel.y в норме
                 for side in ("left", "right"):
                     fi_key = f"{side}_foot_index"
@@ -229,6 +239,8 @@ class CalibrationService:
         avg_tibia = float(np.median(tibia_lengths)) if tibia_lengths else 0.0
         # Базовое смещение пятки в стойке; используется как эталон при детекции отрыва
         standing_heel_drop = float(np.median(heel_drops)) if heel_drops else 0.01
+        # Длина позвоночника в стойке — эталон для spine flexion (rohanx01)
+        reference_spine_length = float(np.median(spine_lengths)) if spine_lengths else None
 
         # Соотношение бедро/голень — влияет на естественный наклон корпуса
         femur_tibia_ratio = (avg_femur / avg_tibia) if avg_tibia > 0 else 1.0
@@ -296,6 +308,7 @@ class CalibrationService:
                 "knee_valgus_tendency": (valgus_counts / len(depths)) >= 0.5 if depths else False,
                 "asymmetry_percentage": round(avg_symmetry, 1),
                 "standing_heel_drop": round(standing_heel_drop, 4),
+                "reference_spine_length": round(reference_spine_length, 4) if reference_spine_length else None,
             },
             "safe_ranges": {
                 "depth_min": round(safe_depth_min, 1),
@@ -529,6 +542,10 @@ class CalibrationService:
         )
         print(f">>> [SERVICE] process_calibration(): user={user_id}, exercise={exercise_type}, reps={len(pose_sequence)}")
 
+        # Валидация user_id
+        if not user_id or not user_id.strip():
+            raise ValueError("user_id не может быть пустым")
+
         # Валидация количества повторений
         if not pose_sequence:
             raise ValueError("Требуется как минимум 1 повторение для калибровки")
@@ -547,6 +564,8 @@ class CalibrationService:
             print(">>> [SERVICE] Пользователь найден в БД.")
 
         # Выполняем калибровку в зависимости от типа упражнения
+        import time as _time
+        t0 = _time.time()
         print(f">>> [SERVICE] Запускаю калибровку {exercise_type}...")
         if exercise_type == "squat":
             calibration_data = cls._calibrate_squat(pose_sequence)
@@ -557,6 +576,8 @@ class CalibrationService:
                 f"Неизвестный тип упражнения: {exercise_type}. "
                 f"Допустимые: squat, deadlift"
             )
+        calc_elapsed = (_time.time() - t0) * 1000
+        print(f">>> [SERVICE] Расчёт калибровки занял {calc_elapsed:.0f}ms")
 
         # Создаём или обновляем профиль в БД
         print(">>> [SERVICE] Запрос к профилю калибровки в БД...")
@@ -592,10 +613,24 @@ class CalibrationService:
             db.add(profile)
             logger.info(f"Создан новый профиль калибровки для {user_id}/{exercise_type}")
 
-        print(">>> [SERVICE] Cохраняю профиль в БД (commit)...")
-        db.commit()
-        db.refresh(profile)
-        print(">>> [SERVICE] process_calibration(): расчёт завершён успешно.")
+        # Сохраняем в БД с замером времени
+        print(">>> [DB] Попытка сохранения профиля калибровки...")
+        try:
+            t_db = _time.time()
+            db.commit()
+            db.refresh(profile)
+            db_elapsed = (_time.time() - t_db) * 1000
+            print(f">>> [DB] Профиль сохранён за {db_elapsed:.0f}ms")
+            if db_elapsed > 5000:
+                print(f">>> [DB] ⚠️ ВНИМАНИЕ: сохранение заняло {db_elapsed:.0f}ms (>5s)!")
+        except Exception as db_err:
+            print(f">>> [DB] ❌ ОШИБКА сохранения: {db_err}")
+            logger.error(f"DB commit failed: {db_err}", exc_info=True)
+            db.rollback()
+            raise ValueError(f"Ошибка сохранения в БД: {db_err}")
+
+        total_elapsed = (_time.time() - t0) * 1000
+        print(f">>> [SERVICE] process_calibration(): ГОТОВО за {total_elapsed:.0f}ms")
 
         return {
             "calibration_completed": True,

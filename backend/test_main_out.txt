@@ -1,0 +1,15 @@
+>>> [DB] Engine создан: sqlite:///./motionq.db...
+2026-02-21 02:22:32,532 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-21 02:22:32,536 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("users")
+2026-02-21 02:22:32,539 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-21 02:22:32,544 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("calibration_profiles")
+2026-02-21 02:22:32,547 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-21 02:22:32,550 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("workouts")
+2026-02-21 02:22:32,552 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-21 02:22:32,553 INFO sqlalchemy.engine.Engine COMMIT
+
+📥 Incoming: GET http://localhost:8002/health
+   Client: Address(host='127.0.0.1', port=58157)
+   Body: 0 bytes
+📤 Response: 200 (2ms) ← GET /health
+INFO:     127.0.0.1:58157 - "GET /health HTTP/1.1" 200 OK

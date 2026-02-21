@@ -5,8 +5,17 @@ MotionQ AI Fitness Trainer — FastAPI Backend.
 """
 
 import logging
+import sys
 import time
 from contextlib import asynccontextmanager
+
+# Windows console (cp1251/cp866) не поддерживает Unicode-эмодзи в print().
+# Без этой строки первый же print("📥 ...") внутри middleware бросает
+# UnicodeEncodeError → каждый запрос возвращает 500 Internal Server Error.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,26 +74,19 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start = time.time()
-    content_type = request.headers.get("content-type", "")
-    print(f"\n📥 Incoming: {request.method} {request.url}")
-    print(f"   Client: {request.client}")
-
-    # НЕ читаем тело для multipart/file-upload — иначе 33MB виснет в памяти
-    if "multipart" not in content_type:
-        body_bytes = await request.body()
-        print(f"   Body: {len(body_bytes)} bytes")
-        if body_bytes and len(body_bytes) < 500:
-            print(f"   Body preview: {body_bytes[:500].decode('utf-8', errors='replace')}")
-    else:
-        print(f"   Content-Type: {content_type} (file upload, body not read)")
-
-    response = await call_next(request)
-    elapsed = (time.time() - start) * 1000
-    print(f"📤 Response: {response.status_code} ({elapsed:.0f}ms) ← {request.method} {request.url.path}")
-    return response
+# @app.middleware("http")
+# async def log_requests(request: Request, call_next):
+#     start = time.time()
+#     try:
+#         response = await call_next(request)
+#         elapsed = (time.time() - start) * 1000
+#         print(f"📤 Response: {response.status_code} ({elapsed:.0f}ms) ← {request.method} {request.url.path}")
+#         return response
+#     except Exception as e:
+#         import traceback
+#         print(f"\n❌ [MIDDLEWARE CRASH] {e}")
+#         traceback.print_exc()
+#         raise
 
 
 # Подключение маршрутов

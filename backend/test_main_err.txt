@@ -1,0 +1,16 @@
+2026-02-21 02:22:32 | INFO     | app.main | MotionQ AI Fitness Trainer запущен
+2026-02-21 02:22:32 | INFO     | app.main | CORS origins: ['*']
+2026-02-21 02:22:32 | INFO     | app.main | Debug mode: True
+INFO:     Started server process [30128]
+INFO:     Waiting for application startup.
+2026-02-21 02:22:32 | INFO     | sqlalchemy.engine.Engine | BEGIN (implicit)
+2026-02-21 02:22:32 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("users")
+2026-02-21 02:22:32 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-02-21 02:22:32 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("calibration_profiles")
+2026-02-21 02:22:32 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-02-21 02:22:32 | INFO     | sqlalchemy.engine.Engine | PRAGMA main.table_info("workouts")
+2026-02-21 02:22:32 | INFO     | sqlalchemy.engine.Engine | [raw sql] ()
+2026-02-21 02:22:32 | INFO     | sqlalchemy.engine.Engine | COMMIT
+2026-02-21 02:22:32 | INFO     | app.main | Database tables ensured
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)

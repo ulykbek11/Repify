@@ -338,10 +338,14 @@ def _analyze_technique_from_sequence(
     """
     Анализирует технику из полной последовательности кадров.
 
-    Находит ключевые кадры (нижняя точка каждого повторения)
-    и анализирует их. Возвращает усреднённый результат.
+    Камера снимает СБОКУ — используется только LEFT сторона тела.
+    Проверяются только показатели, видимые в боковой плоскости:
+      ✅ Spine flexion, Torso lean, Squat depth, Knee forward
+      ❌ Knee valgus (невидимо сбоку)
+      ❌ Balance/CoM (ненадёжно сбоку)
     """
     if not frames:
+        print("⚠️  [analyze_sequence] Нет кадров для анализа")
         return {
             "overall_score": 0,
             "quality_breakdown": {},
@@ -349,81 +353,58 @@ def _analyze_technique_from_sequence(
             "comparison_to_calibration": {},
         }
 
-    # Анализируем кадры с минимальным углом (ключевые)
+    print(f"\n📊 [analyze_sequence] exercise={exercise_type}, frames={len(frames)}, profile={'yes' if profile else 'no'}")
+
+    # Вычисляем эталонную длину позвоночника из первого кадра (стоячая позиция)
+    reference_spine_length = None
+    try:
+        first = frames[0]
+        mid_sh = {"x": (first["left_shoulder"]["x"] + first["right_shoulder"]["x"]) / 2,
+                  "y": (first["left_shoulder"]["y"] + first["right_shoulder"]["y"]) / 2,
+                  "z": (first["left_shoulder"].get("z", 0) + first["right_shoulder"].get("z", 0)) / 2}
+        mid_hp = {"x": (first["left_hip"]["x"] + first["right_hip"]["x"]) / 2,
+                  "y": (first["left_hip"]["y"] + first["right_hip"]["y"]) / 2,
+                  "z": (first["left_hip"].get("z", 0) + first["right_hip"].get("z", 0)) / 2}
+        import math as _math
+        reference_spine_length = _math.sqrt(
+            (mid_sh["x"] - mid_hp["x"]) ** 2 +
+            (mid_sh["y"] - mid_hp["y"]) ** 2 +
+            (mid_sh["z"] - mid_hp["z"]) ** 2
+        )
+        print(f"   🦴 Reference spine length from frame[0]: {reference_spine_length:.4f}")
+        # Если есть сохранённый эталон из калибровки, он точнее
+        if profile and profile.baseline_metrics.get("reference_spine_length"):
+            reference_spine_length = profile.baseline_metrics["reference_spine_length"]
+            print(f"   🦴 Using calibrated spine length: {reference_spine_length:.4f}")
+    except (KeyError, TypeError):
+        print("   ⚠️  Не удалось вычислить reference_spine_length")
+
     scores = []
     all_errors = []
 
-    # Берём каждый N-й кадр для анализа (не каждый кадр для производительности)
+    # Анализируем каждый N-й кадр (не все — для производительности)
     step = max(1, len(frames) // 30)
     key_frames = frames[::step]
+    print(f"   🔍 Анализирую {len(key_frames)} ключевых кадров (step={step})")
 
     for frame in key_frames:
         try:
             if profile:
-                result = TechniqueAnalyzer._analyze_squat(frame, profile) \
-                    if exercise_type == "squat" \
-                    else TechniqueAnalyzer._analyze_deadlift(frame, profile)
-                scores.append(result["technique_score"])
-                all_errors.extend(result.get("errors", []))
-            else:
-                # Без калибровки — базовый анализ по углам
                 if exercise_type == "squat":
-                    knee = get_average_knee_angle(frame)
-                    lean = calculate_torso_lean(frame)
-                    score = 0.8
-                    if knee < 60:
-                        score -= 0.2
-                    if lean > 50:
-                        score -= 0.15
-                    scores.append(max(0, score))
+                    result = TechniqueAnalyzer._analyze_squat(frame, profile)
                 else:
-                    back = calculate_back_angle(frame)
-                    score = 0.8
-                    if back < 150:
-                        score -= 0.2
-                    scores.append(max(0, score))
-        except (KeyError, ValueError):
-            continue
-            
-        # Реализация детектора "Отрыва пяток"
-        if exercise_type == "squat":
-            try:
-                left_foot = frame.get("left_foot_index")
-                left_heel = frame.get("left_heel")
-                right_foot = frame.get("right_foot_index")
-                right_heel = frame.get("right_heel")
-                
-                # Check absolute positions if expected a baseline
-                if left_foot and left_heel and right_foot and right_heel:
-                    left_diff = left_foot["y"] - left_heel["y"]
-                    right_diff = right_foot["y"] - right_heel["y"]
-                    
-                    if profile:
-                        base_left = profile.baseline_metrics.get("heel_foot_diff_left", left_diff)
-                        base_right = profile.baseline_metrics.get("heel_foot_diff_right", right_diff)
-                        # Если разница стала значительно меньше, значит пятка поднялась (y-координаты уменьшаются вверх)
-                        if (base_left - left_diff > 0.05) or (base_right - right_diff > 0.05):
-                            all_errors.append({
-                                "error_type": "heel_rise",
-                                "message": "Опора потеряна: не отрывай пятки от пола!",
-                                "severity": "high"
-                            })
-            except Exception:
-                pass
-                
-        # Реализация детектора "Недоседа"
-        if exercise_type == "squat" and profile:
-            knee = get_average_knee_angle(frame)
-            natural_depth = profile.baseline_metrics.get("natural_squat_depth", 95.0)
-            if knee > natural_depth + 20.0:
-                all_errors.append({
-                    "error_type": "insufficient_depth", 
-                    "message": "Недосед: садись глубже до параллели.",
-                    "severity": "medium"
-                })
+                    result = TechniqueAnalyzer._analyze_deadlift(frame, profile)
+            else:
+                if exercise_type == "squat":
+                    result = TechniqueAnalyzer._analyze_squat_universal(frame, reference_spine_length)
+                else:
+                    result = TechniqueAnalyzer._analyze_deadlift(frame, None)
 
-    avg_score = sum(scores) / len(scores) if scores else 0.5
-    overall_score = round(avg_score * 100)
+            scores.append(result["technique_score"])
+            all_errors.extend(result.get("errors", []))
+        except (KeyError, ValueError) as e:
+            print(f"   ⚠️  Ошибка кадра: {e}")
+            continue
 
     # Deduplicate errors by type
     seen_errors = set()
@@ -433,6 +414,9 @@ def _analyze_technique_from_sequence(
         if et not in seen_errors:
             seen_errors.add(et)
             unique_errors.append(err)
+
+    # Calculate overall score based on unique errors (100 - 15 per error)
+    overall_score = max(0, 100 - (len(unique_errors) * 15))
 
     # Build quality breakdown
     breakdown = {}
@@ -547,8 +531,16 @@ async def calibrate_frontend(
     Принимает pose_sequence как массив кадров (каждый с 33 landmarks).
     Автоматически разбивает на 5 повторений и вызывает CalibrationService.
     """
+    import time as _time
+    print(f">>> [CALIBRATE] Получено {len(request.pose_sequence)} кадров для калибровки")
+    print(f">>> [API] /calibrate: user={request.user_id}, exercise={request.exercise}, frames={len(request.pose_sequence)}")
+
+    # Проверка user_id
+    if not request.user_id or request.user_id.strip() == "":
+        print(">>> [ERROR] user_id пустой!")
+        raise HTTPException(status_code=400, detail="user_id не может быть пустым")
+
     try:
-        print(f">>> [API] /calibrate: user={request.user_id}, exercise={request.exercise}, frames={len(request.pose_sequence)}")
         exercise_type = _normalize_exercise(request.exercise)
 
         # Конвертируем массив landmarks → словарь
@@ -558,10 +550,9 @@ async def calibrate_frontend(
             if len(frame.landmarks) >= 33:
                 frames.append(_landmarks_array_to_dict(frame.landmarks))
 
-        if len(frames) < 15:
-            raise ValueError(f"Недостаточно кадров: {len(frames)}. Нужно минимум 15.")
-
-        logger.info(f"Калибровка: {len(frames)} кадров, exercise={exercise_type}")
+        if len(frames) < 5:
+            raise ValueError(f"Недостаточно кадров: {len(frames)}. Нужно минимум 5.")
+        print(f"✅ [calibrate] Сконвертировано {len(frames)} валидных кадров")
 
         # Разбиваем на повторения
         print(f">>> [API] Разбиваю {len(frames)} кадров на повторения...")
@@ -571,7 +562,8 @@ async def calibrate_frontend(
             reps = [frames]
         print(f">>> [API] Обнаружено {len(reps)} повторений")
 
-        # Вызываем калибровку
+        # Вызываем калибровку с замером времени
+        t0 = _time.time()
         print(">>> [API] Вызываю CalibrationService.process_calibration()...")
         result = CalibrationService.process_calibration(
             db=db,
@@ -579,6 +571,8 @@ async def calibrate_frontend(
             exercise_type=exercise_type,
             pose_sequence=reps,
         )
+        elapsed = (_time.time() - t0) * 1000
+        print(f">>> [API] Калибровка завершена за {elapsed:.0f}ms")
         print(">>> [API] /calibrate: ответ отправлен.")
 
         return {
@@ -587,10 +581,12 @@ async def calibrate_frontend(
         }
 
     except ValueError as e:
+        print(f">>> [ERROR] ValueError: {e}")
         logger.warning(f"Ошибка калибровки: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
+        print(f">>> [CRITICAL] Калибровка упала: {e}")
         logger.error(f"Ошибка калибровки: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -610,15 +606,20 @@ async def count_reps_frontend(
     всю видео-последовательность и анализирует целиком.
     """
     try:
-        print(f">>> [API] /count-reps: user={request.user_id}, exercise={request.exercise}, frames={len(request.pose_sequence)}")
+        print(f"\n📥 [count-reps] user={request.user_id}, exercise={request.exercise}")
+        print(f"   frames received: {len(request.pose_sequence)}")
         exercise_type = _normalize_exercise(request.exercise)
+        print(f"   normalized exercise: {exercise_type}")
 
         frames = []
         for frame in request.pose_sequence:
             if len(frame.landmarks) >= 33:
                 frames.append(_landmarks_array_to_dict(frame.landmarks))
 
+        print(f"   valid frames (≥33 landmarks): {len(frames)}")
+
         if not frames:
+            print("   ⚠️  0 valid frames — returning zeros")
             return {
                 "total_reps": 0,
                 "full_reps": 0,
@@ -638,9 +639,10 @@ async def count_reps_frontend(
             .first()
         )
 
-        print(f">>> [API] Подсчёт повторений из {len(frames)} кадров...")
+        print(f"✅ [count-reps] profile={'found' if profile else 'not found — universal thresholds'}")
+        print(f"🔢 [count-reps] Подсчёт из {len(frames)} кадров...")
         result = _count_reps_from_sequence(frames, exercise_type, profile)
-        print(f">>> [API] /count-reps: reps={result['total_reps']}, ответ отправлен.")
+        print(f"✅ [count-reps] total={result['total_reps']}, full={result['full_reps']}, partial={result['partial_reps']}")
         return result
 
     except Exception as e:
@@ -663,15 +665,27 @@ async def analyze_technique_frontend(
     Работает и без профиля (с базовым анализом).
     """
     try:
-        print(f">>> [API] /analyze-technique (compat): user={request.user_id}, exercise={request.exercise}, frames={len(request.pose_sequence)}")
+        print(f"\n📥 [analyze-technique] user={request.user_id}, exercise={request.exercise}")
+        print(f"   frames received: {len(request.pose_sequence)}")
+        if request.pose_sequence:
+            sample = request.pose_sequence[0]
+            print(f"   frame[0] landmarks count: {len(sample.landmarks)}")
+            if sample.landmarks:
+                lm0 = sample.landmarks[0]
+                print(f"   landmark[0] sample: x={lm0.x:.3f}, y={lm0.y:.3f}, z={lm0.z:.3f}")
+
         exercise_type = _normalize_exercise(request.exercise)
+        print(f"   normalized exercise: {exercise_type}")
 
         frames = []
         for frame in request.pose_sequence:
             if len(frame.landmarks) >= 33:
                 frames.append(_landmarks_array_to_dict(frame.landmarks))
 
+        print(f"   valid frames (≥33 landmarks): {len(frames)}")
+
         if not frames:
+            print("   ⚠️  0 valid frames — returning empty result")
             return {
                 "overall_score": 0,
                 "quality_breakdown": {},
@@ -679,8 +693,6 @@ async def analyze_technique_frontend(
                 "comparison_to_calibration": {},
             }
 
-        # Пробуем получить профиль калибровки
-        print(">>> [API] Запрос к профилю...")
         profile = (
             db.query(CalibrationProfile)
             .filter(
@@ -689,10 +701,10 @@ async def analyze_technique_frontend(
             )
             .first()
         )
+        print(f"   📋 profile: {'found' if profile else 'not found — using universal thresholds'}")
 
-        print(f">>> [API] Анализ техники из {len(frames)} кадров...")
         result = _analyze_technique_from_sequence(frames, exercise_type, profile)
-        print(f">>> [API] /analyze-technique (compat): score={result.get('overall_score')}, ответ отправлен.")
+        print(f"✅ [analyze-technique] score={result.get('overall_score')}, breakdown_keys={list(result.get('quality_breakdown', {}).keys())}")
         return result
 
     except Exception as e:
