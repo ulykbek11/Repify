@@ -27,18 +27,18 @@ class VideoProcessor:
     def extract_poses(
         self,
         video_path: str,
-        target_frames: int = 40,
+        target_frames: int = 3000,
         limit_frames: Optional[int] = None,
+        target_fps: Optional[int] = None,
     ) -> List[Dict[str, Dict[str, float]]]:
         """
         Извлекает позы из видео с выборкой кадров и сжатием.
 
         Args:
             video_path: Путь к видео-файлу.
-            target_frames: Желаемое количество кадров для анализа (по умолчанию 40).
-                           Если в видео меньше кадров — обрабатываются все.
+            target_frames: Желаемое количество кадров для анализа (по умолчанию 3000).
             limit_frames: (deprecated) Жёсткий лимит обработки первых N кадров.
-                          Если указан, используется вместо target_frames.
+            target_fps: Если указан, игнорирует target_frames и пытается извлечь кадры с заданной частотой.
         """
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -46,20 +46,29 @@ class VideoProcessor:
             raise ValueError(f"Не удалось открыть видео: {video_path}")
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        print(f">>> [PROCESSOR] Video: {total_frames} frames, {fps:.1f} fps")
+        video_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        print(f">>> [PROCESSOR] Video: {total_frames} frames, {video_fps:.1f} fps")
 
         # Вычисляем шаг выборки
         if limit_frames:
             # Старый режим: обрабатываем первые N кадров подряд
             step = 1
             max_to_process = limit_frames
+        elif target_fps:
+            # Режим FPS: пытаемся сохранить target_fps
+            step = max(1, int(video_fps / target_fps))
+            max_to_process = total_frames // step
         else:
-            # Новый режим: равномерная выборка target_frames кадров
-            step = max(1, total_frames // target_frames)
-            max_to_process = target_frames
+            # Режим фиксированного количества кадров
+            # Если видео короткое, берем все кадры (step=1)
+            if total_frames <= target_frames:
+                step = 1
+                max_to_process = total_frames
+            else:
+                step = max(1, total_frames // target_frames)
+                max_to_process = target_frames
 
-        print(f">>> [PROCESSOR] Sampling: step={step}, target={max_to_process}")
+        print(f">>> [PROCESSOR] Sampling: step={step}, target_count={max_to_process}")
 
         frames_landmarks = []
         frame_idx = 0

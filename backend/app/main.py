@@ -26,8 +26,6 @@ from app.database import Base, engine
 # Must be imported BEFORE create_all so SQLAlchemy registers all table definitions
 import app.models  # noqa: F401
 
-from app.api.calibration import router as calibration_router
-from app.api.analysis import router as analysis_router
 from app.api.workouts import router as workouts_router
 from app.api.frontend_compat import router as frontend_compat_router
 
@@ -90,10 +88,7 @@ app.add_middleware(
 
 
 # Подключение маршрутов
-# Frontend compat router FIRST — перехватывает /api/calibrate, /api/count-reps,
-# /api/profile/{user_id}/exists и /api/analyze-technique (с pose_sequence)
 app.include_router(frontend_compat_router)
-app.include_router(calibration_router)
 app.include_router(workouts_router)
 
 

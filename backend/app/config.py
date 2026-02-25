@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # Supabase
     supabase_url: str = ""
     supabase_service_key: str = ""
+    
+    # AI 
+    gemini_api_key: str = ""
 
     # Server
     host: str = "0.0.0.0"

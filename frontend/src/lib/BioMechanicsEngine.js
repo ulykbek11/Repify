@@ -1,13 +1,13 @@
 // BioMechanicsEngine.js
-// Advanced Rule-Based Analysis Engine for Repify
-// Replaces ML classifiers with deterministic biomechanical models and angle-based analysis.
+// Unified AI-Powered Analysis Engine for Repify
+// Uses single /api/analyze endpoint — Gemini AI handles calibration, rep counting, and technique analysis.
 
 /**
  * fetch() with AbortController timeout.
  * React Native has no built-in request timeout — without this, a failed
  * backend connection hangs the UI forever.
  */
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 30000) => {
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 600000) => {
   const controller = new AbortController();
   const timerId = setTimeout(() => {
     controller.abort();
@@ -56,7 +56,7 @@ const getPoseSequence = async (videoUri, allowMock) => {
         body: formData,
         headers: { 'Accept': 'application/json' },
       },
-      60000  // 60s — видео может быть большим
+      600000  // 600s — видео может быть большим и обработка требует времени
     );
 
     if (!response.ok) {
@@ -81,7 +81,6 @@ export const BioMechanicsEngine = {
    * @param {Object} p3 - Point C {x, y}
    */
   calculateAngle: (p1, p2, p3) => {
-    // Math.atan2 returns angle in radians
     const radians = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
     let angle = Math.abs(radians * 180.0 / Math.PI);
 
@@ -92,63 +91,47 @@ export const BioMechanicsEngine = {
   },
 
   /**
-   * Analyzes user "genetics" (body proportions) based on calibration data.
-   * Uses simulated keypoint detection to determine limb ratios.
+   * [DEPRECATED] Old genetic analysis — now handled by Gemini inline.
+   * Kept for backward compatibility if CalibrationScreen still calls it.
    */
   analyzeGenetics: async (videoUri) => {
-    // Simulate processing delay for "deep analysis"
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Mock analysis logic - in a real implementation with PoseDetection, 
-    // we would measure pixel distances between keypoints:
-    // Femur = distance(hip, knee)
-    // Torso = distance(shoulder, hip)
-
-    // Simulating variations for demonstration
-    const femurLength = 0.24 + (Math.random() * 0.04); // Ratio to height
-    const torsoLength = 0.30 + (Math.random() * 0.05); // Ratio to height
-
-    // Determine Body Type (Somatotype) based on ratios
-    let bodyType = 'mesomorph';
-    if (femurLength > 0.26) bodyType = 'ectomorph'; // Long limbs
-    if (torsoLength > 0.33) bodyType = 'endomorph'; // Long torso
-
-    // Biomechanical leverage analysis for "Smart Conditions"
-    const squatMechanics = femurLength > 0.25 ? 'low_bar_optimal' : 'high_bar_optimal';
-    const deadliftMechanics = (femurLength < 0.25 && torsoLength > 0.3) ? 'conventional' : 'sumo';
-
+    await new Promise(resolve => setTimeout(resolve, 500));
     return {
       success: true,
       body_type: {
-        type: bodyType,
-        femur: femurLength > 0.26 ? 'длинное' : 'среднее',
-        torso: torsoLength > 0.32 ? 'длинный' : 'средний',
-        arms: Math.random() > 0.5 ? 'длинные' : 'средние'
+        type: 'average',
+        femur: 'среднее',
+        torso: 'средний',
+        arms: 'средние'
       },
       biomechanics: {
-        ankle_mobility_score: 7.0 + (Math.random() * 3), // 7-10
-        hip_mobility_score: 6.5 + (Math.random() * 3.5), // 6.5-10
-        squat_preference: squatMechanics,
-        deadlift_preference: deadliftMechanics
+        ankle_mobility_score: 8.0,
+        hip_mobility_score: 8.0,
+        squat_preference: 'high_bar_optimal',
+        deadlift_preference: 'conventional'
       },
-      quality_score: 9.2 // High confidence
+      quality_score: 9.0
     };
   },
 
-  /**
-   * Rule-based Technique Analysis using Geometric Constraints (Angles)
-   * Validates form against biomechanical constraints specific to user genetics.
-   * 
-   * NOW USES REAL BACKEND API INSTEAD OF MOCK DATA!
-   */
   getPoseSequence,
 
+  /**
+   * Unified Technique Analysis via Gemini AI.
+   *
+   * Single call to /api/analyze — Gemini handles:
+   *   1. Mini-calibration from first frames (standing pose)
+   *   2. Rep counting from angle sequences
+   *   3. Technique analysis with personalized proportions
+   *
+   * Returns: { reps, score, errors, strengths, coach_tip, calibration_notes }
+   */
   analyzeTechnique: async (exerciseType, videoUri, userProfile = {}) => {
     try {
       const { API_URL } = await import('../config');
       const { supabase, DEV_MODE } = await import('./supabase');
 
-      console.log('🎬 Starting real video analysis...');
+      console.log('🎬 Starting unified Gemini AI analysis...');
       console.log('Video URI:', videoUri);
       console.log('Exercise:', exerciseType);
 
@@ -160,8 +143,7 @@ export const BioMechanicsEngine = {
         return 'squats';
       };
 
-      // FIX: do not force mock data in __DEV__ mode.
-      // Use mock only when DEV_MODE is explicitly enabled.
+      // STEP 1: Extract poses from video via MediaPipe
       const { poseSequence, isMock } = await getPoseSequence(videoUri, DEV_MODE);
 
       if (!poseSequence || poseSequence.length === 0) {
@@ -169,14 +151,14 @@ export const BioMechanicsEngine = {
           isValid: false,
           errors: [{
             code: 'POSE_EXTRACTION',
-            feedback: 'Анализ недоступен: не настроено извлечение позы из видео.',
+            feedback: 'Анализ недоступен: не удалось извлечь позу из видео.',
             severity: 'high'
           }],
           reps: 0,
           score: 0,
           backendUnavailable: false,
           poseExtractionMissing: true,
-          apiError: 'Pose extraction not implemented'
+          apiError: 'Pose extraction failed'
         };
       }
 
@@ -189,52 +171,23 @@ export const BioMechanicsEngine = {
         userId = user?.id || 'anonymous';
       }
 
+      // STEP 3: Get user height from profile (if available)
+      let userHeightCm = null;
+      if (userProfile?.height) {
+        userHeightCm = parseInt(userProfile.height, 10);
+      }
+
       const normalizedExercise = normalizeExerciseType(exerciseType);
-
       const requestTs = Date.now();
-      console.log(`👤 Проверка профиля для userId: ${userId}`);
-      const profileResponse = await fetchWithTimeout(
-        `${API_URL}/api/profile/${userId}/exists?ts=${requestTs}`,
-        { cache: 'no-store' },
-        15000
-      );
-      if (!profileResponse.ok) {
-        return {
-          isValid: false,
-          errors: [{
-            code: 'PROFILE_CHECK_FAILED',
-            feedback: 'Не удалось проверить калибровку. Проверьте подключение к серверу.',
-            severity: 'high'
-          }],
-          reps: 0,
-          score: 0,
-          backendUnavailable: true,
-          poseExtractionMissing: false,
-          apiError: `Profile check failed: ${profileResponse.status}`
-        };
-      }
-      const { exists } = await profileResponse.json();
 
-      if (!exists) {
-        console.log('⚠️ No calibration profile found - user needs to calibrate first');
-        return {
-          isValid: false,
-          errors: [{
-            code: 'NO_CALIBRATION',
-            feedback: 'Пожалуйста, сначала пройдите калибровку для более точного анализа',
-            severity: 'high'
-          }],
-          reps: 0,
-          score: 0,
-          needsCalibration: true,
-          backendUnavailable: false,
-          poseExtractionMissing: false
-        };
-      }
+      // STEP 4: Single unified call to /api/analyze
+      console.log('🤖 Sending to unified /api/analyze...');
+      console.log(`   Exercise: ${normalizedExercise}`);
+      console.log(`   Frames: ${poseSequence.length}`);
+      console.log(`   Height: ${userHeightCm || 'not provided'}`);
 
-      console.log('🔢 Sending to count-reps:', poseSequence.length);
-      const repCountResponse = await fetchWithTimeout(
-        `${API_URL}/api/count-reps?ts=${requestTs}`,
+      const analyzeResponse = await fetchWithTimeout(
+        `${API_URL}/api/analyze?ts=${requestTs}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -242,98 +195,58 @@ export const BioMechanicsEngine = {
           body: JSON.stringify({
             user_id: userId,
             exercise: normalizedExercise,
-            pose_sequence: poseSequence
+            pose_sequence: poseSequence,
+            user_height_cm: userHeightCm,
+            camera_angle: 'side_profile'
           })
         },
-        30000
+        600000  // 600s — Gemini может думать дольше при большом количестве кадров
       );
 
-      if (!repCountResponse.ok) {
-        throw new Error(`Rep counting failed: ${repCountResponse.statusText}`);
+      if (!analyzeResponse.ok) {
+        const errText = await analyzeResponse.text();
+        throw new Error(`Analysis failed: ${analyzeResponse.status} — ${errText}`);
       }
 
-      const repData = await repCountResponse.json();
-      console.log(`✅ Rep counting complete: ${repData.total_reps} reps`);
+      const geminiResult = await analyzeResponse.json();
+      console.log(`✅ Gemini analysis complete!`);
+      console.log(`   Reps: ${geminiResult.total_reps}`);
+      console.log(`   Score: ${geminiResult.score}/100`);
+      console.log(`   Errors: ${geminiResult.errors?.length || 0}`);
+      console.log(`   Coach tip: ${geminiResult.coach_tip}`);
 
-      // STEP 5: Call REAL backend API for technique analysis
-      console.log('📊 Calling backend API for technique analysis...');
-      const techniqueResponse = await fetchWithTimeout(
-        `${API_URL}/api/analyze-technique?ts=${requestTs}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          cache: 'no-store',
-          body: JSON.stringify({
-            user_id: userId,
-            exercise: normalizedExercise,
-            pose_sequence: poseSequence
-          })
-        },
-        30000
-      );
-
-      if (!techniqueResponse.ok) {
-        throw new Error(`Technique analysis failed: ${techniqueResponse.statusText}`);
-      }
-
-      const techniqueData = await techniqueResponse.json();
-      console.log(`✅ Technique analysis complete: ${techniqueData.overall_score}/100`);
-
-      // STEP 6: Convert backend response to frontend format
-      // FIX: always rebuild errors from current backend response.
-      // This guarantees errors are recalculated and not reused.
+      // STEP 5: Convert Gemini response to frontend format
       const errors = [];
-      const feedback = techniqueData?.personalized_feedback || {};
-      const breakdown = techniqueData?.quality_breakdown || {};
-
-      if (Array.isArray(feedback.areas_to_improve)) {
-        feedback.areas_to_improve.forEach((area, index) => {
-          if (!area) return;
+      if (Array.isArray(geminiResult.errors)) {
+        geminiResult.errors.forEach((errMsg, index) => {
+          if (!errMsg) return;
           errors.push({
-            code: `ERROR_${index + 1}`,
-            feedback: area,
-            severity: techniqueData.overall_score < 70 ? 'high' : 'medium'
+            code: `GEMINI_ERROR_${index + 1}`,
+            feedback: errMsg,
+            severity: geminiResult.score < 70 ? 'high' : 'medium'
           });
-        });
-      }
-
-      if (breakdown.knee_alignment && breakdown.knee_alignment.score < 15) {
-        errors.push({
-          code: 'KNEE_ALIGNMENT',
-          feedback: breakdown.knee_alignment.feedback,
-          severity: 'high'
-        });
-      }
-      if (breakdown.back_position && breakdown.back_position.score < 15) {
-        errors.push({
-          code: 'BACK_POSITION',
-          feedback: breakdown.back_position.feedback,
-          severity: 'high'
-        });
-      }
-      if (breakdown.depth && breakdown.depth.score < 15) {
-        errors.push({
-          code: 'DEPTH',
-          feedback: breakdown.depth.feedback,
-          severity: 'medium'
         });
       }
 
       return {
         isValid: errors.length === 0,
         errors: errors,
-        reps: repData.total_reps,
-        full_reps: repData.full_reps,
-        partial_reps: repData.partial_reps,
-        score: techniqueData.overall_score,
-        consistency_score: repData.consistency_score,
-        fatigue_analysis: repData.fatigue_analysis,
+        reps: geminiResult.total_reps || 0,
+        full_reps: geminiResult.total_reps || 0,
+        partial_reps: 0,
+        score: geminiResult.score || 0,
+        strengths: geminiResult.strengths || [],
+        coach_tip: geminiResult.coach_tip || '',
+        calibration_notes: geminiResult.calibration_notes || '',
+        consistency_score: 0.85,
+        fatigue_analysis: { detected: false },
         backendUnavailable: false,
         analysisMode: isMock ? 'mock' : 'real',
         poseExtractionMissing: false,
+        needsCalibration: false,  // No longer needed — Gemini does inline calibration
         biomechanics_context: {
-          body_type: userProfile?.body_type?.type || 'standard',
-          comparison: techniqueData.comparison_to_calibration
+          body_type: geminiResult.calibration_notes || 'standard',
+          comparison: { has_profile: true }  // Gemini always calibrates
         }
       };
 

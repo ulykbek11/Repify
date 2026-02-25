@@ -1,4 +1,0 @@
-
-[REQUEST] GET http://localhost:8001/health
-[RESPONSE] 200 (67ms)
-INFO:     127.0.0.1:58119 - "GET /health HTTP/1.1" 200 OK

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { ArrowLeft, CheckCircle, AlertTriangle, Home, Share2, User, ArrowDown, MoveHorizontal, ArrowUpCircle, AlignCenter } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle, AlertTriangle, Home, Share2, User, ArrowDown, MoveHorizontal, ArrowUpCircle, AlignCenter, Star, MessageCircle, Dna } from 'lucide-react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 const processErrors = (errors = []) => {
@@ -14,7 +14,7 @@ const processErrors = (errors = []) => {
     let title = fb.replace(/Ошибка #\d+\s*[-:]?\s*/, '').trim();
 
     // Отсекаем всё, что идёт после первой скобки или точки (включая саму скобку/точку)
-    title = title.split(/[(\.]/)[0].trim();
+    title = title.split(/[(.]/)[0].trim();
 
     if (!grouped[title]) {
       grouped[title] = { count: 0 };
@@ -92,17 +92,18 @@ export default function AnalysisResultScreen() {
   }
 
   const primaryError = data.errors && data.errors.length > 0 ? data.errors[0].feedback : '';
-  const showStatus = data.needsCalibration || data.backendUnavailable || data.poseExtractionMissing;
-  const statusTitle = data.needsCalibration
-    ? 'Нужна калибровка'
-    : data.poseExtractionMissing
-      ? 'Не настроен анализ'
-      : 'Анализ недоступен';
-  const statusText = data.needsCalibration
-    ? 'Сначала пройдите калибровку, затем повторите тренировку.'
-    : data.poseExtractionMissing
-      ? (primaryError || 'Нет извлечения позы из видео.')
-      : (primaryError || 'Проверьте подключение к серверу и повторите анализ.');
+  const showStatus = data.backendUnavailable || data.poseExtractionMissing;
+  const statusTitle = data.poseExtractionMissing
+    ? 'Не настроен анализ'
+    : 'Анализ недоступен';
+  const statusText = data.poseExtractionMissing
+    ? (primaryError || 'Нет извлечения позы из видео.')
+    : (primaryError || 'Проверьте подключение к серверу и повторите анализ.');
+
+  // Gemini AI data
+  const strengths = data.strengths || [];
+  const coachTip = data.coach_tip || '';
+  const calibrationNotes = data.calibration_notes || '';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -191,9 +192,21 @@ export default function AnalysisResultScreen() {
           </View>
         )}
 
-        {/* Genetic Context Info */}
-        {data.biomechanics_context && (
-          <View style={{ paddingHorizontal: 24, marginBottom: 32 }}>
+        {/* Calibration Notes from Gemini (Body type analysis) */}
+        {calibrationNotes ? (
+          <View style={{ paddingHorizontal: 24, marginBottom: 16 }}>
+            <View style={styles.geneticContainer}>
+              <View style={styles.geneticIcon}>
+                <Dna color="#FF6B00" size={20} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.geneticTitle}>Ваши пропорции</Text>
+                <Text style={styles.geneticText}>{calibrationNotes}</Text>
+              </View>
+            </View>
+          </View>
+        ) : data.biomechanics_context && (
+          <View style={{ paddingHorizontal: 24, marginBottom: 16 }}>
             <View style={styles.geneticContainer}>
               <View style={styles.geneticIcon}>
                 <User color="#FF6B00" size={20} />
@@ -210,7 +223,22 @@ export default function AnalysisResultScreen() {
           </View>
         )}
 
-        {/* Feedback List */}
+        {/* Strengths Section from Gemini */}
+        {strengths.length > 0 && (
+          <View style={{ paddingHorizontal: 24, marginBottom: 24 }}>
+            <Text style={styles.sectionTitle}>Что вы делаете правильно 💪</Text>
+            {strengths.map((strength, index) => (
+              <View key={index} style={styles.strengthCard}>
+                <View style={styles.strengthIcon}>
+                  <Star color="#00FF87" size={18} />
+                </View>
+                <Text style={styles.strengthText}>{strength}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Feedback List (Errors) */}
         <View style={{ paddingHorizontal: 24 }}>
           <Text style={styles.sectionTitle}>Анализ техники</Text>
           {uniqueErrorsList.length > 0 ? (
@@ -240,6 +268,21 @@ export default function AnalysisResultScreen() {
             </View>
           )}
         </View>
+
+        {/* Coach Tip from Gemini */}
+        {coachTip ? (
+          <View style={{ paddingHorizontal: 24, marginTop: 24 }}>
+            <View style={styles.coachTipCard}>
+              <View style={styles.coachTipHeader}>
+                <View style={styles.coachTipIcon}>
+                  <MessageCircle color="#60A5FA" size={20} />
+                </View>
+                <Text style={styles.coachTipTitle}>Совет тренера</Text>
+              </View>
+              <Text style={styles.coachTipText}>{coachTip}</Text>
+            </View>
+          </View>
+        ) : null}
 
         <View style={{ paddingHorizontal: 24, marginTop: 32 }}>
           <TouchableOpacity
@@ -408,6 +451,7 @@ const styles = StyleSheet.create({
   geneticText: {
     color: '#9CA3AF',
     fontSize: 12,
+    marginTop: 2,
   },
   sectionTitle: {
     color: 'white',
@@ -415,6 +459,59 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
+  // Strengths
+  strengthCard: {
+    backgroundColor: 'rgba(0, 255, 135, 0.06)',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.15)',
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  strengthIcon: {
+    backgroundColor: 'rgba(0, 255, 135, 0.12)',
+    padding: 6,
+    borderRadius: 9999,
+  },
+  strengthText: {
+    color: '#D1FAE5',
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  // Coach Tip
+  coachTipCard: {
+    backgroundColor: 'rgba(96, 165, 250, 0.08)',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.2)',
+  },
+  coachTipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
+  },
+  coachTipIcon: {
+    backgroundColor: 'rgba(96, 165, 250, 0.15)',
+    padding: 6,
+    borderRadius: 9999,
+  },
+  coachTipTitle: {
+    color: '#60A5FA',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  coachTipText: {
+    color: '#BFDBFE',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  // Errors
   errorCard: {
     backgroundColor: '#1A1F2E',
     padding: 16,
