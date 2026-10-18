@@ -112,15 +112,25 @@ The sample results for all 14 exercises in English and Russian are also bundled 
 | `GEMINI_API_KEY` | backend | Optional. Enables Gemini analysis. Without it the local analyzer is used. |
 | `GEMINI_MODEL` | backend | Defaults to `gemini-2.5-flash`. |
 | `CORS_ORIGINS` | backend | Comma-separated browser origins allowed to call the API. |
+| `CORS_ORIGIN_REGEX` | backend | Optional regex for origins you cannot list, such as Vercel preview URLs. |
 | `MAX_UPLOAD_MB` | backend | Upload limit for `/api/extract-poses` (default 60). |
 | `EXPO_PUBLIC_API_URL` | app | Backend base URL. Empty means demo mode (bundled samples, no upload). |
 | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` | app | Optional. Enables real accounts. |
 
 ## Deploying
 
-- **Backend:** any container host (Render, Railway, Fly.io) using `backend/Dockerfile`. Set `CORS_ORIGINS` to the web app's origin and optionally `GEMINI_API_KEY`.
-- **Web app:** Vercel with root directory `frontend` (`frontend/vercel.json` is included). Set `EXPO_PUBLIC_API_URL` to the backend URL.
-- **Mobile:** EAS Build (`eas build`) once a backend URL is available.
+**Web app (Vercel).** Project root directory `frontend`, build command `npm run build:web`, output `dist` (`frontend/vercel.json` also rewrites every route to `index.html`). Without `EXPO_PUBLIC_API_URL` the build runs in demo mode (bundled sample analyses, no upload), so it works on its own.
+
+**Backend (any container host).** `render.yaml` is a Render blueprint for `backend/Dockerfile`; Railway and Fly.io work with the same Dockerfile (give it about 1 GB of memory, MediaPipe plus OpenCV need it while a video is processed).
+
+To attach the backend to the web app:
+
+1. In Render choose **New -> Blueprint**, select this repository and branch, and apply it. Optionally set `GEMINI_API_KEY` for Gemini analysis (the rule-based analyzer is used without it).
+2. Wait for the deploy, then open `https://<service>.onrender.com/health`. It should list the 14 exercises.
+3. In Vercel open the `repify` project -> Settings -> Environment Variables and add `EXPO_PUBLIC_API_URL=https://<service>.onrender.com` (no trailing slash) for Production and Preview. It is read at build time, so redeploy afterwards.
+4. If your web URL is not one of the `repify*-ulykbeks-projects.vercel.app` previews, add it to `CORS_ORIGINS` (exact origin, comma separated) or adjust `CORS_ORIGIN_REGEX` on the Render service.
+
+**Mobile:** EAS Build (`eas build`) once a backend URL is available.
 
 ## Limitations
 
@@ -139,7 +149,8 @@ The project went through several iterations: an ML-model experiment for techniqu
 ## Repository layout
 
 ```
-backend/    FastAPI service, analyzers, tests, Dockerfile
-frontend/   Expo app (screens, i18n, API client, auth)
+backend/    FastAPI service, analyzers, tests, Dockerfile, scripts/export_samples.py
+frontend/   Expo app (screens, i18n, API client, auth, bundled sample analyses)
 docs/       screenshots
+render.yaml Render blueprint for the backend
 ```

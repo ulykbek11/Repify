@@ -289,3 +289,24 @@ def test_gemini_prompt_describes_the_exercise():
     assert "above 145" in ohp and "Russian" in ohp
     plank = build_prompt("plank", "side_profile", [], None, "en")
     assert "timed hold" in plank and "t_ms" in plank
+
+
+def test_cors_regex_allows_vercel_previews_only(monkeypatch):
+    import importlib
+    import app.config as config
+    import app.main as main
+
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", r"^https://repify(-[a-z0-9-]+)?-ulykbeks-projects\.vercel\.app$")
+    monkeypatch.setenv("CORS_ORIGINS", "https://repify.vercel.app")
+    importlib.reload(config)
+    importlib.reload(main)
+    try:
+        c = TestClient(main.app)
+        ok = c.get("/health", headers={"Origin": "https://repify-git-fix-repify-working-ulykbeks-projects.vercel.app"})
+        assert ok.headers.get("access-control-allow-origin") == "https://repify-git-fix-repify-working-ulykbeks-projects.vercel.app"
+        assert c.get("/health", headers={"Origin": "https://repify.vercel.app"}).headers.get("access-control-allow-origin")
+        assert not c.get("/health", headers={"Origin": "https://evil.vercel.app"}).headers.get("access-control-allow-origin")
+    finally:
+        monkeypatch.undo()
+        importlib.reload(config)
+        importlib.reload(main)

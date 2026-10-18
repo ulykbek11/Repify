@@ -21,6 +21,10 @@ class Settings(BaseSettings):
         "http://localhost:8081,http://localhost:19006,http://localhost:3000,http://localhost:8082"
     )
 
+    # Optional regular expression for origins that cannot be listed in advance, such as Vercel
+    # preview URLs. Matched against the whole origin, e.g. https://repify-abc123-team.vercel.app
+    cors_origin_regex: str = ""
+
     # Upload limit for /api/extract-poses.
     max_upload_mb: int = 60
 

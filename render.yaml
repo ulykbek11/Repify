@@ -1,0 +1,29 @@
+# Render blueprint for the Repify backend (FastAPI + MediaPipe in Docker).
+# One-click: Render dashboard -> New -> Blueprint -> pick this repository and branch -> Apply.
+# Then copy the service URL into EXPO_PUBLIC_API_URL on the Vercel project (see README, "Deploying").
+services:
+  - type: web
+    name: repify-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # MediaPipe + OpenCV need roughly 1 GB while a video is processed. The free plan (512 MB) is too
+    # small and the starter plan (512 MB) is tight; "standard" (2 GB) is the safe choice for uploads.
+    # The sample analysis and /api/analyze alone would run on far less.
+    plan: standard
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Exact browser origins that may call the API, comma separated. Add your production web URL.
+      - key: CORS_ORIGINS
+        value: https://repify.vercel.app,http://localhost:8081
+      # Vercel preview URLs of the repify project (any deployment hash and branch alias).
+      - key: CORS_ORIGIN_REGEX
+        value: ^https://repify(-[a-z0-9-]+)?-ulykbeks-projects\.vercel\.app$
+      # Optional: set a Gemini key in the dashboard to use Gemini instead of the rule-based analyzer.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: MAX_UPLOAD_MB
+        value: "60"
