@@ -4,6 +4,8 @@ AI feedback on the technique of 14 exercises from a live camera or a single side
 
 Turn on your camera (or upload a clip), do a set, and Repify finds your body landmarks, converts them into joint angles, counts the repetitions (or times the hold) and tells you what to fix: depth, lockout, torso lean, knee travel, body line, swing. It covers squat, deadlift, bench press, overhead press, push-up, pull-up, barbell row, lunge, Romanian deadlift, bicep curl, plank, hip thrust, dip and lat pulldown. The app runs on iOS, Android and the web (Expo / React Native), and speaks English and Russian.
 
+![Live camera flow on a phone-sized screen: camera, countdown, recording with live rep count](docs/live-camera.gif)
+
 | Live camera | Recording with live rep count | Result |
 |---|---|---|
 | ![Live camera with skeleton overlay](docs/screenshots/01-live-camera.png) | ![Recording a set](docs/screenshots/02-live-recording.png) | ![Result](docs/screenshots/03-result.png) |
