@@ -17,3 +17,10 @@ __pycache__/
 *.zip
 *.db
 *.sqlite
+
+.user_home/
+AppData/
+backend/.env
+backend/*.db
+last_payload.json
+verify*/
