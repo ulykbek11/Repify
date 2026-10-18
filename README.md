@@ -1,8 +1,13 @@
 # Repify
 
+[![CI](https://github.com/ulykbek11/Repify/actions/workflows/ci.yml/badge.svg)](https://github.com/ulykbek11/Repify/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 AI feedback on the technique of 14 exercises from a live camera or a single side-view video.
 
 Turn on your camera (or upload a clip), do a set, and Repify finds your body landmarks, converts them into joint angles, counts the repetitions (or times the hold) and tells you what to fix: depth, lockout, torso lean, knee travel, body line, swing. It covers squat, deadlift, bench press, overhead press, push-up, pull-up, barbell row, lunge, Romanian deadlift, bicep curl, plank, hip thrust, dip and lat pulldown. The app runs on iOS, Android and the web (Expo / React Native), and speaks English and Russian.
+
+**Live app: https://repify-mu.vercel.app** (allow the camera and do a set, or upload a side-view clip).
 
 ![Live camera flow on a phone-sized screen: camera, countdown, recording with live rep count](docs/live-camera.gif)
 
@@ -172,6 +177,11 @@ The project went through several iterations: an ML-model experiment for techniqu
 ```
 backend/    FastAPI service, analyzers, tests (with generated landmark fixtures), Dockerfile
 frontend/   Expo app (screens, live camera, i18n, API client, on-device profile and history)
-docs/       screenshots
-render.yaml Render blueprint for the backend
+docs/       screenshots, ADDING_EXERCISES.md
+render.yaml Render blueprint for the backend (optional; the API also runs on Vercel)
+.github/    CI workflow
 ```
+
+## Contributing and license
+
+Pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ADDING_EXERCISES.md](docs/ADDING_EXERCISES.md) for how to add an exercise. Released under the [MIT license](LICENSE).

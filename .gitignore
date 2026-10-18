@@ -24,3 +24,28 @@ backend/.env
 backend/*.db
 last_payload.json
 verify*/
+
+# Secrets and local config (only the *.example files are tracked)
+.env.*
+!.env.example
+*.pem
+*.key
+*.keystore
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+*.egg-info/
+
+# Videos and model weights do not belong in git
+*.mp4
+*.mov
+*.avi
+*.webm
+*.onnx
+*.tflite
+*.pt
+*.task
+*.bak

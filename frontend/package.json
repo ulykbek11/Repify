@@ -8,7 +8,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export -p web",
-    "test": "node --experimental-default-type=module --test tests/"
+    "test": "node --experimental-default-type=module --test tests/",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -32,7 +33,19 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
-    "babel-preset-expo": "^54.0.10"
+    "babel-preset-expo": "^54.0.10",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~10.0.0"
   },
-  "private": true
+  "private": true,
+  "license": "MIT",
+  "description": "Repify app: AI feedback on lifting technique (Expo / React Native, runs on iOS, Android and web)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ulykbek11/Repify.git",
+    "directory": "frontend"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }
