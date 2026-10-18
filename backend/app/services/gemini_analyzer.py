@@ -85,6 +85,9 @@ Reply with strict JSON only, no markdown:
 Write all strings in {lang}."""
 
 
+MAX_PROMPT_FRAMES = 150
+
+
 def analyze_with_gemini(
     exercise: str,
     camera_angle: str,
@@ -95,20 +98,26 @@ def analyze_with_gemini(
     if not is_configured():
         raise GeminiError("GEMINI_API_KEY is not set")
 
-    # Keep the prompt bounded for long videos.
-    step = max(1, len(frames) // 1500)
+    # Keep the prompt small: a few hundred frames are plenty for rep counting, and a short prompt keeps
+    # the call fast enough for a serverless request.
+    step = max(1, len(frames) // MAX_PROMPT_FRAMES)
     prompt = build_prompt(exercise, camera_angle, frames[::step], user_height_cm, language)
 
     try:
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=settings.gemini_api_key)
+        client = genai.Client(
+            api_key=settings.gemini_api_key,
+            http_options=types.HttpOptions(timeout=settings.gemini_timeout_s * 1000),
+        )
         response = client.models.generate_content(
             model=settings.gemini_model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.1, response_mime_type="application/json"
+                temperature=0.1,
+                response_mime_type="application/json",
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
         result = parse_response(response.text or "")

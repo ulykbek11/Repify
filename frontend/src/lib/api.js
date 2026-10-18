@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { API_URL, DEMO_MODE } from '../config';
 import samples from '../data/samples.json';
+import { canExtractInBrowser, extractPosesInBrowser } from './poseExtractor';
 
 export class ApiError extends Error {
   constructor(message, kind = 'http', status) {
@@ -52,11 +53,30 @@ export async function sampleAnalysis(exercise, language) {
   }
 }
 
+// Vercel Functions reject request bodies above 4.5 MB, so larger videos cannot be uploaded to a
+// Vercel-hosted backend. The web build therefore extracts poses in the browser and only sends the
+// landmarks; a small clip falls back to the server if the browser cannot run MediaPipe.
+const SERVER_UPLOAD_LIMIT = 4 * 1024 * 1024;
+
 // asset: result of expo-image-picker ({ uri, file? })
 export async function extractPoses(asset) {
   const form = new FormData();
   if (Platform.OS === 'web') {
     const file = asset.file || (await (await fetch(asset.uri)).blob());
+    let browserError = null;
+    if (canExtractInBrowser) {
+      try {
+        const poses = await extractPosesInBrowser(file);
+        if (!poses.length) throw new ApiError('No person detected in the video', 'http', 422);
+        return poses;
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        browserError = error;
+      }
+    }
+    if (file.size > SERVER_UPLOAD_LIMIT) {
+      throw new ApiError(browserError ? `Pose detection failed in the browser: ${browserError.message}` : 'Video too large', 'http', 413);
+    }
     form.append('video', file, asset.fileName || 'video.mp4');
   } else {
     form.append('video', { uri: asset.uri, name: 'video.mp4', type: 'video/mp4' });

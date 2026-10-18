@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     # Gemini is optional. Without a key the deterministic local analyzer is used.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    # Seconds to wait for Gemini before falling back to the local analyzer.
+    gemini_timeout_s: int = 25
 
     debug: bool = False
 
