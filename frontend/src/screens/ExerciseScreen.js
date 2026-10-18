@@ -1,37 +1,68 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Camera, CheckCircle2, FlaskConical, ScanLine, Upload, Video } from 'lucide-react-native';
+import { ArrowLeft, Camera, CheckCircle2, ScanLine, Upload, Video } from 'lucide-react-native';
 import { colors } from '../theme';
 import { useLanguage } from '../i18n';
-import { ApiError, analyze, extractPoses, sampleAnalysis } from '../lib/api';
-import { DEMO_MODE } from '../config';
+import { ApiError, analyze, extractPoses, getExercises } from '../lib/api';
+import { useService } from '../lib/service';
+import { useProfile } from '../lib/profile';
 import { EXERCISE_ICONS, isHold } from '../data/exercises';
 import { Button, Card, SectionTitle } from '../components/ui';
+import ServiceBanner from '../components/ServiceBanner';
+import LiveCamera, { liveCameraSupported } from '../components/LiveCamera';
 
 export default function ExerciseScreen() {
   const { t, language } = useLanguage();
   const navigation = useNavigation();
   const { exercise } = useRoute().params;
+  const { profile } = useProfile();
+  const service = useService();
   const [stage, setStage] = useState(null); // null | 'extracting' | 'analyzing'
+  const [progress, setProgress] = useState(null); // { fraction, phase }
   const [error, setError] = useState(null);
+  const [spec, setSpec] = useState(null);
+
+  // Counting thresholds for the live rep counter come from the backend registry.
+  useEffect(() => {
+    if (service.state !== 'ready') return;
+    getExercises().then((list) => setSpec(list.find((e) => e.id === exercise) || null)).catch(() => setSpec(null));
+  }, [service.state, exercise]);
+
+  function fail(e) {
+    if (e instanceof ApiError && (e.kind === 'network' || e.kind === 'config')) setError(t('exercise.errNetwork'));
+    else if (e instanceof ApiError && e.status === 422) setError(t('exercise.errNoPerson'));
+    else setError(t('exercise.errFailed', { message: e.message }));
+  }
+
+  async function analyzeLandmarks(poseSequence) {
+    setError(null);
+    setStage('analyzing');
+    try {
+      const result = await analyze({ poseSequence, exercise, language, heightCm: profile.heightCm });
+      navigation.navigate('Result', { result, exercise });
+    } catch (e) {
+      fail(e);
+    } finally {
+      setStage(null);
+    }
+  }
 
   async function process(asset) {
     setError(null);
     try {
       setStage('extracting');
-      const poseSequence = await extractPoses(asset);
-      setStage('analyzing');
-      const result = await analyze({ poseSequence, exercise, language });
-      navigation.navigate('Result', { result, exercise });
+      setProgress({ fraction: 0, phase: 'model' });
+      const poseSequence = await extractPoses(asset, (fraction, phase) => setProgress({ fraction, phase }));
+      setProgress(null);
+      await analyzeLandmarks(poseSequence);
     } catch (e) {
-      if (e instanceof ApiError && e.kind === 'network') setError(t('exercise.errNetwork'));
-      else if (e instanceof ApiError && e.status === 422) setError(t('exercise.errNoPerson'));
-      else setError(t('exercise.errFailed', { message: e.message }));
-    } finally {
+      fail(e);
       setStage(null);
+    } finally {
+      setProgress(null);
     }
   }
 
@@ -39,26 +70,17 @@ export default function ExerciseScreen() {
     const options = { mediaTypes: ['videos'], quality: 1, videoMaxDuration: 60 };
     if (useCamera) {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) return;
+      if (!perm.granted) return setError(t('live.err.denied'));
     }
     const picked = useCamera ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
     if (!picked.canceled && picked.assets?.[0]) process(picked.assets[0]);
   }
 
-  async function runSample() {
-    setError(null);
-    setStage('sample');
-    try {
-      const result = await sampleAnalysis(exercise, language);
-      navigation.navigate('Result', { result, exercise });
-    } catch (e) {
-      setError(t('exercise.errNetwork'));
-    } finally {
-      setStage(null);
-    }
-  }
-
   const busy = stage !== null;
+  const unavailable = service.state !== 'ready';
+  const extractLabel = progress
+    ? t(progress.phase === 'model' ? 'live.loadingModel' : 'exercise.extractingPct', { pct: Math.round(progress.fraction * 100) })
+    : t('exercise.extracting');
   const tips = ['exercise.tip1', 'exercise.tip2', isHold(exercise) ? 'exercise.tipHold' : 'exercise.tip3', 'exercise.tip4'];
   const Icon = EXERCISE_ICONS[exercise];
 
@@ -73,7 +95,45 @@ export default function ExerciseScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Card style={{ marginBottom: 14 }}>
+        <ServiceBanner service={service} />
+
+
+        {liveCameraSupported ? (
+          <Card style={{ marginTop: 14 }}>
+            <View style={styles.cardHead}>
+              <View style={styles.iconBox}><Camera size={22} color={colors.primary} /></View>
+              <Text style={styles.cardTitle}>{t('live.title')}</Text>
+            </View>
+            <Text style={[styles.tipText, { marginBottom: 12 }]}>{t('live.desc')}</Text>
+            <LiveCamera exercise={exercise} spec={spec} hold={isHold(exercise)} disabled={unavailable || busy} onSession={analyzeLandmarks} />
+          </Card>
+        ) : null}
+
+        {stage === 'analyzing' ? <Text style={styles.note}>{t('exercise.analyzing')}</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <Card style={{ marginTop: 14 }}>
+          <View style={styles.cardHead}>
+            <View style={styles.iconBox}><Upload size={22} color={colors.primary} /></View>
+            <Text style={styles.cardTitle}>{t('exercise.uploadTitle')}</Text>
+          </View>
+          <Text style={[styles.tipText, { marginBottom: 12 }]}>{t(Platform.OS === 'web' ? 'exercise.uploadHintWeb' : 'exercise.uploadHintNative')}</Text>
+          <View style={{ gap: 12 }}>
+            <Button
+              title={stage === 'extracting' ? extractLabel : stage === 'analyzing' ? t('exercise.analyzing') : t('exercise.upload')}
+              icon={Upload}
+              variant={liveCameraSupported ? 'ghost' : 'primary'}
+              onPress={() => pick(false)}
+              loading={busy}
+              disabled={busy || unavailable}
+            />
+            {Platform.OS !== 'web' ? (
+              <Button title={t('exercise.record')} icon={Camera} onPress={() => pick(true)} disabled={busy || unavailable} />
+            ) : null}
+          </View>
+        </Card>
+
+        <Card style={{ marginTop: 14 }}>
           <View style={styles.cardHead}>
             <View style={styles.iconBox}>{Icon ? <Icon size={22} color={colors.primary} /> : null}</View>
             <Text style={styles.cardTitle}>{t('exercise.cameraTitle')}</Text>
@@ -84,7 +144,7 @@ export default function ExerciseScreen() {
           </View>
         </Card>
 
-        <Card style={{ marginBottom: 14 }}>
+        <Card style={{ marginTop: 14 }}>
           <View style={styles.cardHead}>
             <View style={styles.iconBox}><ScanLine size={22} color={colors.primary} /></View>
             <Text style={styles.cardTitle}>{t('exercise.checksTitle')}</Text>
@@ -92,7 +152,7 @@ export default function ExerciseScreen() {
           <Text style={styles.tipText}>{t(`exercise.checks.${exercise}`)}</Text>
         </Card>
 
-        <Card>
+        <Card style={{ marginTop: 14 }}>
           <SectionTitle>{t('exercise.tipsTitle')}</SectionTitle>
           {tips.map((key) => (
             <View key={key} style={styles.tip}>
@@ -101,33 +161,6 @@ export default function ExerciseScreen() {
             </View>
           ))}
         </Card>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {DEMO_MODE ? <Text style={styles.note}>{t('exercise.demoNote')}</Text> : null}
-
-        <View style={{ gap: 12, marginTop: 20 }}>
-          {DEMO_MODE ? null : (
-            <Button
-              title={stage === 'extracting' ? t('exercise.extracting') : stage === 'analyzing' ? t('exercise.analyzing') : t('exercise.upload')}
-              icon={Upload}
-              onPress={() => pick(false)}
-              loading={stage === 'extracting' || stage === 'analyzing'}
-              disabled={busy}
-            />
-          )}
-          {Platform.OS !== 'web' && !DEMO_MODE ? (
-            <Button title={t('exercise.record')} icon={Camera} variant="ghost" onPress={() => pick(true)} disabled={busy} />
-          ) : null}
-          <Button
-            title={stage === 'sample' ? t('exercise.sampleRunning') : t('exercise.runSample')}
-            icon={FlaskConical}
-            variant={DEMO_MODE ? 'primary' : 'ghost'}
-            onPress={runSample}
-            loading={stage === 'sample'}
-            disabled={busy}
-          />
-        </View>
       </ScrollView>
     </SafeAreaView>
   );

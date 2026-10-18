@@ -1,4 +1,4 @@
-"""HTTP API: pose extraction, exercise analysis and a built-in sample."""
+"""HTTP API: pose extraction and exercise analysis."""
 
 import logging
 import os
@@ -6,7 +6,7 @@ import shutil
 import tempfile
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from app.config import settings
@@ -14,7 +14,6 @@ from app.services import gemini_analyzer
 from app.services import exercises as exercise_registry
 from app.services.local_analyzer import analyze_local, deepest_frame
 from app.services.pose_features import build_frames, landmarks_to_named
-from app.services.sample_data import SAMPLE_EXERCISES, generate_pose_sequence
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["analysis"])
@@ -103,17 +102,6 @@ async def analyze(request: AnalyzeRequest) -> Dict[str, Any]:
 @router.get("/exercises", summary="Supported exercises, camera view and what is checked")
 async def list_exercises() -> List[Dict[str, Any]]:
     return exercise_registry.describe()
-
-
-@router.get("/sample-analysis", summary="Analyse a built-in synthetic sequence (no video needed)")
-async def sample_analysis(
-    exercise: str = Query("squat", pattern="^(" + "|".join(SAMPLE_EXERCISES) + ")$"),
-    language: str = Query("en", pattern="^(en|ru)$"),
-) -> Dict[str, Any]:
-    sequence = [Frame(**f) for f in generate_pose_sequence(exercise)]
-    result = run_analysis(exercise, sequence, language=language)
-    result["synthetic"] = True
-    return result
 
 
 @router.post("/extract-poses", summary="Extract MediaPipe poses from a video")

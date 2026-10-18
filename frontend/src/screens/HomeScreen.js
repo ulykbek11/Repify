@@ -1,40 +1,21 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Camera, ChevronRight, FlaskConical, ScanLine, Sparkles } from 'lucide-react-native';
+import { Camera, ChevronRight, ScanLine, Sparkles } from 'lucide-react-native';
 import { colors } from '../theme';
 import { useLanguage } from '../i18n';
-import { useAuth } from '../lib/auth';
-import { API_URL, DEMO_MODE } from '../config';
+import { useProfile } from '../lib/profile';
+import { useService } from '../lib/service';
 import { EXERCISE_GROUPS, EXERCISE_ICONS } from '../data/exercises';
-import { getHealth, sampleAnalysis } from '../lib/api';
-import { Button, Card, LanguageSwitch, SectionTitle } from '../components/ui';
+import { Card, LanguageSwitch, SectionTitle } from '../components/ui';
+import ServiceBanner from '../components/ServiceBanner';
 
 export default function HomeScreen() {
-  const { t, language } = useLanguage();
-  const { user } = useAuth();
+  const { t } = useLanguage();
+  const { profile } = useProfile();
   const navigation = useNavigation();
-  const [health, setHealth] = useState(null); // { engine } | 'offline'
-  const [sampleBusy, setSampleBusy] = useState(false);
-  const [sampleError, setSampleError] = useState(null);
-
-  useEffect(() => {
-    getHealth().then(setHealth).catch(() => setHealth('offline'));
-  }, []);
-
-  const runSample = useCallback(async () => {
-    setSampleBusy(true);
-    setSampleError(null);
-    try {
-      const result = await sampleAnalysis('squat', language);
-      navigation.navigate('Result', { result, exercise: 'squat' });
-    } catch (error) {
-      setSampleError(t('exercise.errNetwork'));
-    } finally {
-      setSampleBusy(false);
-    }
-  }, [language, navigation, t]);
+  const service = useService();
 
   const steps = [
     { icon: Camera, text: t('home.step1') },
@@ -47,19 +28,19 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.greeting}>{t('home.greeting', { name: user?.name || t('profile.user') })}</Text>
+            <Text style={styles.greeting}>{profile.name ? t('home.greeting', { name: profile.name }) : t('home.greetingAnon')}</Text>
             <Text style={styles.subtitle}>{t('home.subtitle')}</Text>
           </View>
           <LanguageSwitch />
         </View>
 
-        {DEMO_MODE ? (
-          <Text style={styles.status}>{t('home.demo')}</Text>
-        ) : health === 'offline' ? (
-          <Text style={[styles.status, { color: colors.danger }]}>{t('home.offline', { url: API_URL })}</Text>
-        ) : health ? (
-          <Text style={styles.status}>{t(`home.engine.${health.engine === 'gemini' ? 'gemini' : 'local'}`)}</Text>
-        ) : null}
+        {service.state === 'ready' ? (
+          <Text style={styles.status}>{t(`home.engine.${service.engine === 'gemini' ? 'gemini' : 'local'}`)}</Text>
+        ) : service.state === 'checking' ? (
+          <Text style={styles.status}>{t('service.checking')}</Text>
+        ) : (
+          <ServiceBanner service={service} />
+        )}
 
         <SectionTitle>{t('home.choose')}</SectionTitle>
         {EXERCISE_GROUPS.map((group) => (
@@ -82,16 +63,6 @@ export default function HomeScreen() {
             })}
           </View>
         ))}
-
-        <Card style={{ marginTop: 8 }}>
-          <View style={styles.sampleHeader}>
-            <FlaskConical size={22} color={colors.primary} />
-            <Text style={styles.exerciseTitle}>{t('home.sample')}</Text>
-          </View>
-          <Text style={[styles.exerciseDesc, { marginVertical: 10 }]}>{t('home.sampleDesc')}</Text>
-          {sampleError ? <Text style={[styles.status, { color: colors.danger }]}>{sampleError}</Text> : null}
-          <Button title={sampleBusy ? t('home.sampleRunning') : t('home.sample')} variant="ghost" onPress={runSample} loading={sampleBusy} />
-        </Card>
 
         <View style={{ marginTop: 28 }}>
           <SectionTitle>{t('home.how')}</SectionTitle>
@@ -120,7 +91,6 @@ const styles = StyleSheet.create({
   iconBox: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   exerciseTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
   exerciseDesc: { color: colors.muted, fontSize: 13.5, marginTop: 2, lineHeight: 19 },
-  sampleHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   stepIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   stepText: { color: colors.text, fontSize: 14.5, flex: 1, lineHeight: 20 },

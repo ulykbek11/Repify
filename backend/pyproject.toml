@@ -17,8 +17,8 @@ dependencies = [
 
 # mediapipe 0.10.14 declares jax, jaxlib, scipy, matplotlib, sounddevice and opencv-contrib-python as
 # hard dependencies, but the Pose solution used here needs none of them (~700 MB). Vercel's Python
-# bundle limit is 500 MB, so these are dropped. `app/services/video_processor.py` stubs matplotlib,
-# which mediapipe imports at module level but never uses for pose extraction.
+# bundle limit is 500 MB, so these are dropped. `app/services/video_processor.py` registers an empty matplotlib module
+# when it is missing, because mediapipe imports it at module level but never uses it for pose extraction.
 [tool.uv]
 override-dependencies = [
     "jax; sys_platform == 'never'",

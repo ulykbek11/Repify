@@ -7,7 +7,7 @@ from app.services.local_analyzer import analyze_local, segment_reps
 from app.services.pose_features import (
     angle_at, build_frames, landmarks_to_named, torso_lean, LANDMARK_NAMES,
 )
-from app.services.sample_data import generate_pose_sequence
+from tests.synthetic_poses import generate_pose_sequence
 
 client = TestClient(app)
 
@@ -27,7 +27,7 @@ def test_torso_lean_upright_and_tilted():
     assert torso_lean({"x": 0.8, "y": 0.2}, {"x": 0.5, "y": 0.5}) == pytest.approx(45)
 
 
-def test_sample_has_33_landmarks_and_sane_angles():
+def test_fixture_has_33_landmarks_and_sane_angles():
     frames = build_frames(named_sequence())
     assert all(len(f["landmarks"]) == len(LANDMARK_NAMES) for f in generate_pose_sequence())
     knees = [f["angles"]["knee_angle"] for f in frames]
@@ -82,13 +82,6 @@ def test_health_reports_engine():
     assert body["status"] == "ok" and body["engine"] in ("local", "gemini")
 
 
-def test_sample_analysis_endpoint():
-    body = client.get("/api/sample-analysis?exercise=squat&language=en").json()
-    assert body["total_reps"] == 3 and body["synthetic"] is True
-    assert body["pose_preview"]["angles"]["knee_angle"] < 95
-    assert client.get("/api/sample-analysis?exercise=bench").status_code == 422
-
-
 def test_analyze_endpoint_roundtrip_and_validation():
     seq = generate_pose_sequence("squat")
     ok = client.post("/api/analyze", json={"exercise": "squats", "pose_sequence": seq, "language": "ru"})
@@ -106,7 +99,8 @@ def test_gemini_failure_falls_back_to_local(monkeypatch):
         raise gemini_analyzer.GeminiError("quota")
 
     monkeypatch.setattr(gemini_analyzer, "analyze_with_gemini", boom)
-    body = client.get("/api/sample-analysis").json()
+    seq = generate_pose_sequence("squat")
+    body = client.post("/api/analyze", json={"exercise": "squat", "pose_sequence": seq}).json()
     assert body["engine"] == "local" and body["total_reps"] == 3
 
 
@@ -115,3 +109,17 @@ def test_gemini_response_parsing():
     assert parsed["total_reps"] == 4 and parsed["errors"] == []
     with pytest.raises(gemini_analyzer.GeminiError):
         gemini_analyzer.parse_response("not json")
+
+
+def test_rep_details_carry_coaching_text_for_failed_checks():
+    seq = generate_pose_sequence("squat")
+    for language, word in (("en", "thighs"), ("ru", "бедра")):
+        body = client.post("/api/analyze", json={"exercise": "squat", "pose_sequence": seq, "language": language}).json()
+        weak = [d for d in body["rep_details"] if "depth" in d["issues"]]
+        assert weak and word in weak[0]["issue_tips"][0].lower()
+        assert all(d["issue_tips"] == [] for d in body["rep_details"] if not d["issues"])
+
+
+def test_exercises_endpoint_exposes_the_counting_thresholds():
+    squat = next(e for e in client.get("/api/exercises").json() if e["id"] == "squat")
+    assert squat["rest"] == 160 and squat["enter"] == 130 and "knee" in squat["required"]

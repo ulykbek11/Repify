@@ -3,10 +3,9 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Svg, { Circle } from 'react-native-svg';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Cpu, FlaskConical, Lightbulb, Ruler, Sparkles } from 'lucide-react-native';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Cpu, Lightbulb, Ruler, Sparkles } from 'lucide-react-native';
 import { colors } from '../theme';
 import { useLanguage } from '../i18n';
-import { useAuth } from '../lib/auth';
 import { addToHistory } from '../lib/history';
 import { Button, Card, SectionTitle } from '../components/ui';
 import PoseFigure from '../components/PoseFigure';
@@ -35,12 +34,11 @@ function ScoreRing({ score, label }) {
 
 export default function ResultScreen() {
   const { t } = useLanguage();
-  const { user } = useAuth();
   const navigation = useNavigation();
   const { result, exercise, fromHistory } = useRoute().params;
 
   useEffect(() => {
-    if (!fromHistory && user) addToHistory(user.id, exercise, result);
+    if (!fromHistory) addToHistory(exercise, result);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const preview = result.pose_preview;
@@ -88,7 +86,6 @@ export default function ResultScreen() {
 
         <View style={styles.badges}>
           <View style={styles.badge}>{result.engine === 'gemini' ? <Sparkles size={14} color={colors.primary} /> : <Cpu size={14} color={colors.primary} />}<Text style={styles.badgeText}>{engineLabel}</Text></View>
-          {result.synthetic ? <View style={styles.badge}><FlaskConical size={14} color={colors.warning} /><Text style={styles.badgeText}>{t('result.synthetic')}</Text></View> : null}
         </View>
 
         {preview?.joints ? (
@@ -150,10 +147,15 @@ export default function ResultScreen() {
           <Card style={{ marginTop: 16 }}>
             <SectionTitle>{t('result.perRep')}</SectionTitle>
             {reps.map((rep) => (
-              <View key={rep.index} style={styles.repRow}>
-                <Text style={styles.repLabel}>{t('result.rep', { n: rep.index })}</Text>
-                <View style={styles.barTrack}><View style={[styles.barFill, { width: `${rep.score}%`, backgroundColor: rep.score >= 80 ? colors.success : rep.score >= 60 ? colors.warning : colors.danger }]} /></View>
-                <Text style={styles.repScore}>{rep.score}</Text>
+              <View key={rep.index} style={{ marginBottom: 10 }}>
+                <View style={[styles.repRow, { marginBottom: 4 }]}>
+                  <Text style={styles.repLabel}>{t('result.rep', { n: rep.index })}</Text>
+                  <View style={styles.barTrack}><View style={[styles.barFill, { width: `${rep.score}%`, backgroundColor: rep.score >= 80 ? colors.success : rep.score >= 60 ? colors.warning : colors.danger }]} /></View>
+                  <Text style={styles.repScore}>{rep.score}</Text>
+                </View>
+                {(rep.issue_tips || []).map((tip, i) => (
+                  <View key={i} style={styles.repIssue}><AlertTriangle size={14} color={colors.warning} /><Text style={styles.repIssueText}>{tip}</Text></View>
+                ))}
               </View>
             ))}
           </Card>
@@ -186,6 +188,8 @@ const styles = StyleSheet.create({
   text: { color: colors.text, fontSize: 14.5 },
   row: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 10 },
   rowText: { color: colors.text, fontSize: 14.5, flex: 1, lineHeight: 21 },
+  repIssue: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginLeft: 76, marginTop: 2 },
+  repIssueText: { color: colors.muted, fontSize: 13, lineHeight: 18, flex: 1 },
   repRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   repLabel: { color: colors.muted, fontSize: 13, width: 64 },
   barTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.surface, overflow: 'hidden' },

@@ -1,12 +1,12 @@
-"""Synthetic side-view pose sequences for demos and tests, one builder per exercise.
+"""Synthetic side-view pose sequences, one builder per exercise. Unit-test fixtures only: not part of the app.
 
 A simple planar skeleton is driven by a joint-angle trajectory (knee or hip angle
 for squat and deadlift, elbow or hip angle for the other lifts, a steady body
 line for the plank), then exposed as 33 MediaPipe-style landmarks. No video is
-involved, so the output is explicitly *synthetic*.
+involved, so the output is explicitly synthetic.
 
 ``faults`` switch on a deliberate technique error (for example ``"sag"`` for the
-push-up) so tests and demos can exercise each form check.
+push-up) so tests can exercise each form check.
 """
 
 import math
@@ -311,7 +311,7 @@ def _pose_lunge(s, prog, faults):
     return _skeleton(s, lean, shank)
 
 
-# builder, resting angle, default reps (one weak rep so the demo has something to say), good reps
+# builder, resting angle, default reps (one weak rep so tests have a weak rep to find), good reps
 BUILDERS = {
     "overhead_press": (_pose_ohp, 65, [170, 172, 152], [172, 172, 172]),
     "bicep_curl": (_pose_curl, 172, [45, 50, 80], [45, 48, 46]),
@@ -332,8 +332,8 @@ DEFAULT_DEPTHS["lunge"] = LUNGE[2]
 GOOD_DEPTHS = {"squat": [90, 92, 91], "deadlift": [95, 100, 98]}
 GOOD_DEPTHS.update({k: v[3] for k, v in BUILDERS.items()})
 GOOD_DEPTHS["lunge"] = LUNGE[3]
-SAMPLE_FAULTS = {"plank": {"sag_late"}}  # the demo plank loses its line in the last third
-SAMPLE_EXERCISES = list(DEFAULT_DEPTHS) + ["plank"]
+DEFAULT_FAULTS = {"plank": {"sag_late"}}  # the default plank loses its line in the last third
+FIXTURE_EXERCISES = list(DEFAULT_DEPTHS) + ["plank"]
 
 
 def _plank_pose(faults, progress):
@@ -400,7 +400,7 @@ def generate_pose_sequence(exercise: str = "squat", depths=None, faults=None, re
     start / end angle, ``faults`` a set of deliberate form errors. The plank
     ignores ``depths`` and holds for ``hold_seconds``.
     """
-    faults = set(SAMPLE_FAULTS.get(exercise, ()) if faults is None else faults)
+    faults = set(DEFAULT_FAULTS.get(exercise, ()) if faults is None else faults)
     if exercise == "plank":
         return _generate_plank(faults, hold_seconds)
     if exercise in ("squat", "deadlift"):

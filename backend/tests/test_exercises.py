@@ -11,8 +11,8 @@ from app.services import exercises as registry
 from app.services.exercise_messages import EX_MESSAGES
 from app.services.local_analyzer import analyze_local, deepest_frame, has_message, segment_reps
 from app.services.pose_features import build_frames, landmarks_to_named
-from app.services.sample_data import (
-    DEFAULT_DEPTHS, GOOD_DEPTHS, SAMPLE_EXERCISES, generate_pose_sequence,
+from tests.synthetic_poses import (
+    DEFAULT_DEPTHS, GOOD_DEPTHS, FIXTURE_EXERCISES, generate_pose_sequence,
 )
 
 client = TestClient(app)
@@ -34,9 +34,9 @@ def issues_of(result):
     return [d["issues"] for d in result["rep_details"]]
 
 
-def test_registry_has_fourteen_exercises_and_sample_for_each():
+def test_registry_has_fourteen_exercises_and_a_fixture_for_each():
     assert len(ALL) == 14
-    assert set(ALL) == set(SAMPLE_EXERCISES)
+    assert set(ALL) == set(FIXTURE_EXERCISES)
     for spec in registry.SPECS.values():
         assert spec.camera == "side" and spec.camera_note
         assert spec.mode in ("dip", "peak", "hold")
@@ -104,7 +104,7 @@ def test_form_fault_is_flagged_on_every_rep(exercise, fault, depths, expected):
 
 
 @pytest.mark.parametrize("exercise", [e for e in REP_EXERCISES if e not in ("squat", "deadlift", "lunge")])
-def test_default_sample_has_one_weak_rep(exercise):
+def test_default_fixture_has_one_weak_rep(exercise):
     result, _ = analyze(exercise)
     assert result["total_reps"] == 3
     assert issues_of(result)[:2] == [[], []]
@@ -233,9 +233,10 @@ def test_exercises_endpoint_lists_camera_and_checks():
 
 
 @pytest.mark.parametrize("exercise", ALL)
-def test_sample_analysis_endpoint_for_every_exercise(exercise):
-    body = client.get(f"/api/sample-analysis?exercise={exercise}&language=en").json()
-    assert body["synthetic"] is True and body["exercise"] == exercise
+def test_analyze_endpoint_for_every_exercise(exercise):
+    seq = generate_pose_sequence(exercise)
+    body = client.post("/api/analyze", json={"exercise": exercise, "pose_sequence": seq, "language": "en"}).json()
+    assert body["exercise"] == exercise
     assert body["pose_preview"]["joints"] and body["engine"] == "local"
     if exercise == "plank":
         assert body["hold_seconds"] > 10
@@ -269,15 +270,6 @@ def test_app_has_texts_for_every_exercise():
     for exercise in ALL:
         for key in (f"home.{exercise}", f"home.{exercise}Desc", f"exercise.camera.{exercise}", f"exercise.checks.{exercise}"):
             assert strings.count(f"'{key}'") == 2, key  # once in English, once in Russian
-
-
-def test_bundled_samples_match_the_backend():
-    import json
-    bundled = json.loads((ROOT / "frontend/src/data/samples.json").read_text(encoding="utf-8"))
-    for exercise in ALL:
-        for language in ("en", "ru"):
-            live = client.get(f"/api/sample-analysis?exercise={exercise}&language={language}").json()
-            assert bundled[exercise][language] == live, f"run backend/scripts/export_samples.py ({exercise}/{language})"
 
 
 def test_gemini_prompt_describes_the_exercise():

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,8 +9,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 
 import { colors } from './src/theme';
 import { LanguageProvider, useLanguage } from './src/i18n';
-import { AuthProvider, useAuth } from './src/lib/auth';
-import AuthScreen from './src/screens/AuthScreen';
+import { ProfileProvider, useProfile } from './src/lib/profile';
 import HomeScreen from './src/screens/HomeScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
 import ResultScreen from './src/screens/ResultScreen';
@@ -46,7 +45,7 @@ function Tabs() {
 }
 
 function Root() {
-  const { user, ready } = useAuth();
+  const { ready } = useProfile();
   if (!ready) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -57,15 +56,9 @@ function Root() {
   return (
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-        {user ? (
-          <>
-            <Stack.Screen name="Main" component={Tabs} />
-            <Stack.Screen name="Exercise" component={ExerciseScreen} />
-            <Stack.Screen name="Result" component={ResultScreen} />
-          </>
-        ) : (
-          <Stack.Screen name="Auth" component={AuthScreen} />
-        )}
+        <Stack.Screen name="Main" component={Tabs} />
+        <Stack.Screen name="Exercise" component={ExerciseScreen} />
+        <Stack.Screen name="Result" component={ResultScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -75,10 +68,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <LanguageProvider>
-        <AuthProvider>
+        <ProfileProvider>
           <StatusBar style="light" />
           <Root />
-        </AuthProvider>
+        </ProfileProvider>
       </LanguageProvider>
     </SafeAreaProvider>
   );

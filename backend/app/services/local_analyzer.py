@@ -225,6 +225,8 @@ def analyze_local(
                 "min_angle": round(ctx.value, 1),
                 "score": round(max(0.0, 100.0 - penalty)),
                 "issues": issues,
+                # Coaching text for the checks this repetition failed, in the requested language.
+                "issue_tips": [_msg(language, f"tip_{k}", ex) for k in issues if has_message(language, f"tip_{k}", ex)],
             }
         )
 

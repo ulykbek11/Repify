@@ -406,6 +406,9 @@ def describe() -> List[Dict[str, Any]]:
             "signal": s.signal,
             "signal_label": s.signal_label,
             "mode": s.mode,
+            "rest": s.rest,
+            "enter": s.enter,
+            "required": list(s.required),
             "checks": [c.key for c in s.checks] if s.mode != "hold" else ["sag", "pike", "shoulders", "short"],
         }
         for s in SPECS.values()

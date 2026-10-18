@@ -5,7 +5,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { History as HistoryIcon, Trash2 } from 'lucide-react-native';
 import { colors } from '../theme';
 import { useLanguage } from '../i18n';
-import { useAuth } from '../lib/auth';
 import { clearHistory, loadHistory } from '../lib/history';
 import { Button, Card, SectionTitle } from '../components/ui';
 
@@ -13,13 +12,12 @@ const scoreColor = (s) => (s >= 80 ? colors.success : s >= 60 ? colors.warning :
 
 export default function HistoryScreen() {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
   const [items, setItems] = useState([]);
 
   useFocusEffect(
     useCallback(() => {
-      if (user) loadHistory(user.id).then(setItems);
-    }, [user])
+      loadHistory().then(setItems);
+    }, [])
   );
 
   const avg = items.length ? Math.round(items.reduce((a, i) => a + i.score, 0) / items.length) : 0;
@@ -65,7 +63,7 @@ export default function HistoryScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.itemTitle}>
                       {t(`home.${item.exercise}`)}
-                      {item.synthetic ? `  (${t('history.sample')})` : ''}
+                      
                     </Text>
                     <Text style={styles.itemMeta}>
                       {new Date(item.date).toLocaleDateString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -83,7 +81,7 @@ export default function HistoryScreen() {
               icon={Trash2}
               variant="ghost"
               style={{ marginTop: 24 }}
-              onPress={async () => { await clearHistory(user.id); setItems([]); }}
+              onPress={async () => { await clearHistory(); setItems([]); }}
             />
           </>
         )}

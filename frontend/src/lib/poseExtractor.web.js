@@ -7,18 +7,57 @@ const MODEL_URL =
 
 const TARGET_FPS = 15;
 const MAX_FRAMES = 450;
+const MODEL_SIZE_ESTIMATE = 9.4 * 1024 * 1024;
 const MAX_SIDE = 640; // detection runs on a downscaled frame, like the server (640x480)
 
 export const canExtractInBrowser = typeof document !== 'undefined' && typeof WebAssembly !== 'undefined';
 
-let landmarkerPromise = null;
+// The model file is downloaded once (with progress) and shared by every landmarker instance.
+let modelPromise = null;
+const progressListeners = new Set();
 
-async function createLandmarker() {
-  const { FilesetResolver, PoseLandmarker } = await import('@mediapipe/tasks-vision');
+function fetchModel(onProgress) {
+  if (onProgress) progressListeners.add(onProgress);
+  if (!modelPromise) {
+    modelPromise = (async () => {
+      const response = await fetch(MODEL_URL);
+      if (!response.ok) throw new Error(`model download failed (HTTP ${response.status})`);
+      const total = Number(response.headers.get('content-length')) || MODEL_SIZE_ESTIMATE;
+      const chunks = [];
+      let received = 0;
+      const reader = response.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        const fraction = Math.min(0.99, received / total);
+        progressListeners.forEach((fn) => fn(fraction));
+      }
+      const bytes = new Uint8Array(received);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+      progressListeners.forEach((fn) => fn(1));
+      return bytes;
+    })().catch((error) => { modelPromise = null; throw error; });
+  }
+  return modelPromise.finally(() => { if (onProgress) progressListeners.delete(onProgress); });
+}
+
+let fileLandmarker = null;
+let fileTsBase = 0;
+
+// Creates a pose landmarker: GPU delegate first, CPU when the GPU is not available.
+// Resolves to { landmarker, delegate }.
+export async function createLandmarker(onProgress) {
+  const [{ FilesetResolver, PoseLandmarker }, bytes] = await Promise.all([
+    import('@mediapipe/tasks-vision'),
+    fetchModel(onProgress),
+  ]);
   const fileset = await FilesetResolver.forVisionTasks(WASM_BASE);
   const make = (delegate) =>
     PoseLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: MODEL_URL, delegate },
+      baseOptions: { modelAssetBuffer: bytes.slice(), delegate },
       runningMode: 'VIDEO',
       numPoses: 1,
       minPoseDetectionConfidence: 0.5,
@@ -26,15 +65,17 @@ async function createLandmarker() {
       minTrackingConfidence: 0.5,
     });
   try {
-    return await make('GPU');
+    return { landmarker: await make('GPU'), delegate: 'GPU' };
   } catch (_) {
-    return await make('CPU');
+    return { landmarker: await make('CPU'), delegate: 'CPU' };
   }
 }
 
-function getLandmarker() {
-  if (!landmarkerPromise) landmarkerPromise = createLandmarker().catch((e) => { landmarkerPromise = null; throw e; });
-  return landmarkerPromise;
+function getFileLandmarker(onProgress) {
+  if (!fileLandmarker) {
+    fileLandmarker = createLandmarker(onProgress).then((r) => r.landmarker).catch((e) => { fileLandmarker = null; throw e; });
+  }
+  return fileLandmarker;
 }
 
 function seek(video, time) {
@@ -63,13 +104,14 @@ function loadVideo(file) {
 
 const round = (n) => Math.round(n * 10000) / 10000;
 
-// file: File/Blob. Returns [{ landmarks: [{x, y, z, visibility} x33], timestamp }]
+// file: File/Blob. onProgress(fraction, 'model' | 'frames'). Returns [{ landmarks: [{x, y, z, visibility} x33], timestamp }]
 export async function extractPosesInBrowser(file, onProgress) {
   const { video, url } = await loadVideo(file);
   try {
     const duration = video.duration;
     if (!Number.isFinite(duration) || duration <= 0) throw new Error('Could not read the video duration');
-    const landmarker = await getLandmarker();
+    if (onProgress) onProgress(0, 'model');
+    const landmarker = await getFileLandmarker((f) => onProgress && onProgress(f, 'model'));
 
     const frameCount = Math.max(1, Math.min(MAX_FRAMES, Math.floor(duration * TARGET_FPS)));
     const step = duration / frameCount;
@@ -80,12 +122,12 @@ export async function extractPosesInBrowser(file, onProgress) {
     const ctx = canvas.getContext('2d');
 
     const poses = [];
-    let lastTs = -1;
+    let lastTs = fileTsBase; // detectForVideo needs timestamps that keep increasing across files
     for (let i = 0; i < frameCount; i++) {
       const time = Math.min(duration - 0.001, i * step);
       await seek(video, time);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const ts = Math.max(lastTs + 1, Math.round(time * 1000)); // VIDEO mode needs increasing timestamps
+      const ts = Math.max(lastTs + 1, fileTsBase + Math.round(time * 1000)); // VIDEO mode needs increasing timestamps
       lastTs = ts;
       const result = landmarker.detectForVideo(canvas, ts);
       const lms = result?.landmarks?.[0];
@@ -97,8 +139,9 @@ export async function extractPosesInBrowser(file, onProgress) {
           timestamp: Math.round(time * 1000),
         });
       }
-      if (onProgress) onProgress((i + 1) / frameCount);
+      if (onProgress) onProgress((i + 1) / frameCount, 'frames');
     }
+    fileTsBase = lastTs + 1000;
     return poses;
   } finally {
     video.removeAttribute('src');

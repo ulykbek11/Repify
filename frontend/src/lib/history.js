@@ -1,18 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const key = (userId) => `repify.history.${userId}`;
+const KEY = 'repify.history';
 const MAX_ENTRIES = 100;
 
-export async function loadHistory(userId) {
+export async function loadHistory() {
   try {
-    const raw = await AsyncStorage.getItem(key(userId));
+    const raw = await AsyncStorage.getItem(KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (_) {
     return [];
   }
 }
 
-export async function addToHistory(userId, exercise, result) {
+export async function addToHistory(exercise, result) {
   const entry = {
     id: `${Date.now()}`,
     date: new Date().toISOString(),
@@ -21,11 +21,10 @@ export async function addToHistory(userId, exercise, result) {
     holdSeconds: result.mode === 'hold' ? result.hold_seconds || 0 : null,
     score: result.score || 0,
     engine: result.engine || 'local',
-    synthetic: Boolean(result.synthetic),
   };
-  const list = [entry, ...(await loadHistory(userId))].slice(0, MAX_ENTRIES);
-  await AsyncStorage.setItem(key(userId), JSON.stringify(list));
+  const list = [entry, ...(await loadHistory())].slice(0, MAX_ENTRIES);
+  await AsyncStorage.setItem(KEY, JSON.stringify(list));
   return entry;
 }
 
-export const clearHistory = (userId) => AsyncStorage.removeItem(key(userId));
+export const clearHistory = () => AsyncStorage.removeItem(KEY);
