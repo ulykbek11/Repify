@@ -206,7 +206,7 @@ backend/    FastAPI service, analyzers, tests, Dockerfile, scripts/export_sample
 frontend/   Expo app (screens, i18n, API client, auth, bundled sample analyses)
 docs/       screenshots, demo GIF, ADDING_EXERCISES.md
 render.yaml Render blueprint for the backend
-ci/         GitHub Actions workflow (copy to .github/workflows/ci.yml, see ci/README.md)
+.github/    GitHub Actions CI (backend pytest + ruff, frontend lint + web export)
 ```
 
 ## Contributing
