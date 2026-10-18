@@ -136,6 +136,12 @@ To attach the backend to the web app:
 
 **Mobile:** EAS Build (`eas build`) once a backend URL is available.
 
+**Backend on Vercel (no container host).** The same FastAPI app also runs as a Vercel Python function (`backend/pyproject.toml`, `vercel.json`, `.python-version`). Create a second Vercel project with Root Directory `backend` (framework FastAPI), set `CORS_ORIGINS` / `CORS_ORIGIN_REGEX` as above, then point `EXPO_PUBLIC_API_URL` of the web project at it. Things to know:
+
+- MediaPipe 0.10.14 declares jax, scipy and matplotlib as dependencies (about 700 MB) that the Pose solution never uses. `pyproject.toml` drops them with `override-dependencies`, and `video_processor.py` stubs the `matplotlib` import, which keeps the bundle near 300 MB (Vercel's Python limit is 500 MB).
+- Vercel rejects request bodies above 4.5 MB, so large videos cannot be uploaded to the API. The web build therefore runs MediaPipe Tasks Vision in the browser and sends only the landmarks (a few hundred KB) to `/api/analyze`. The native app still uploads to `/api/extract-poses`, which on Vercel works for clips up to 4 MB.
+- Gemini is optional. Without `GEMINI_API_KEY` the deterministic rule-based analyzer runs (about 100 ms). With a key, the call is capped at 25 s and falls back to the rules on any error.
+
 ## Limitations
 
 - Analysis assumes a single person filmed from the side with the whole body in frame. Knee valgus, elbow flare and spine rounding cannot be judged from this angle.
