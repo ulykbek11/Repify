@@ -109,7 +109,7 @@ export default function ExerciseScreen() {
           </Card>
         ) : null}
 
-        {stage === 'analyzing' ? <Text style={styles.note}>{t('exercise.analyzing')}</Text> : null}
+        {stage ? <Text style={styles.status} accessibilityLiveRegion="polite">{stage === 'extracting' ? extractLabel : t('exercise.analyzing')}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Card style={{ marginTop: 14 }}>
@@ -175,6 +175,7 @@ const styles = StyleSheet.create({
   tip: { flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'flex-start' },
   tipText: { color: colors.text, fontSize: 14.5, flex: 1, lineHeight: 20 },
   error: { color: colors.danger, marginTop: 16, fontSize: 14, lineHeight: 20 },
+  status: { color: colors.primary, marginTop: 14, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   note: { color: colors.muted, marginTop: 16, fontSize: 13.5, lineHeight: 20 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   cardTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
