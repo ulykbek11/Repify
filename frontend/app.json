@@ -18,8 +18,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Repify uses the camera to analyze your exercise technique.",
-        "NSMicrophoneUsageDescription": "Repify uses the microphone for video recording."
+        "NSCameraUsageDescription": "Repify records your set so it can analyze your technique.",
+        "NSMicrophoneUsageDescription": "Repify records video with sound.",
+        "NSPhotoLibraryUsageDescription": "Repify lets you pick a video of your set to analyze."
       }
     },
     "android": {
@@ -32,17 +33,19 @@
     },
     "web": {
       "favicon": "./assets/icon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "name": "Repify"
     },
     "plugins": [
       [
-        "expo-camera",
+        "expo-image-picker",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
-          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
-          "recordAudioAndroid": true
+          "photosPermission": "Allow Repify to access your videos for analysis.",
+          "cameraPermission": "Allow Repify to record your set.",
+          "microphonePermission": "Allow Repify to record video with sound."
         }
       ]
-    ]
+    ],
+    "description": "AI feedback on squat and deadlift technique"
   }
 }

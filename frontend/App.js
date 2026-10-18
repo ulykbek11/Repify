@@ -1,122 +1,85 @@
-import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import React from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
-import { Home, User, Trophy, PlayCircle } from 'lucide-react-native';
+import { Dumbbell, History, User } from 'lucide-react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { verifyInstallation } from 'nativewind';
 
-import './src/global.css';
-
-import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
+import { colors } from './src/theme';
+import { LanguageProvider, useLanguage } from './src/i18n';
+import { AuthProvider, useAuth } from './src/lib/auth';
+import AuthScreen from './src/screens/AuthScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
-import AnalysisResultScreen from './src/screens/AnalysisResultScreen';
+import ResultScreen from './src/screens/ResultScreen';
+import HistoryScreen from './src/screens/HistoryScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import EditProfileScreen from './src/screens/EditProfileScreen';
-import ProgressScreen from './src/screens/ProgressScreen';
-import PlanGenerationLoadingScreen from './src/screens/PlanGenerationLoadingScreen';
-import PlanSuccessScreen from './src/screens/PlanSuccessScreen';
-import FullPlanScreen from './src/screens/FullPlanScreen';
-import WorkoutDayScreen from './src/screens/WorkoutDayScreen';
-import PlanSettingsScreen from './src/screens/PlanSettingsScreen';
-import OnboardingScreen from './src/screens/OnboardingScreen';
-import CalibrationScreen from './src/screens/CalibrationScreen';
-import linking from './src/navigation/linking';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function TabNavigator() {
-  const insets = useSafeAreaInsets();
+const navTheme = {
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, background: colors.bg, card: colors.bg, border: colors.border, primary: colors.primary },
+};
 
+function Tabs() {
+  const insets = useSafeAreaInsets();
+  const { t } = useLanguage();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#0A0E1A',
-          borderTopColor: '#1A1F2E',
-          height: Platform.OS === 'android' ? 60 + insets.bottom + 10 : 60 + insets.bottom,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 12 : 8),
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: '#FF6B00',
-        tabBarInactiveTintColor: '#8B8E98',
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-        }
+        tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.border, height: 76 + insets.bottom, paddingTop: 8, paddingBottom: insets.bottom + 12 },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
       }}
     >
-      <Tab.Screen
-        name="HomeTab"
-        component={HomeScreen}
-        options={{
-          tabBarLabel: 'Тренировка',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />
-        }}
-      />
-      <Tab.Screen
-        name="ProgressTab"
-        component={ProgressScreen}
-        options={{
-          tabBarLabel: 'Прогресс',
-          tabBarIcon: ({ color, size }) => <Trophy color={color} size={size} />
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: 'Профиль',
-          tabBarIcon: ({ color, size }) => <User color={color} size={size} />
-        }}
-      />
+      <Tab.Screen name="Train" component={HomeScreen} options={{ tabBarLabel: t('tabs.train'), tabBarIcon: ({ color, size }) => <Dumbbell color={color} size={size} /> }} />
+      <Tab.Screen name="History" component={HistoryScreen} options={{ tabBarLabel: t('tabs.history'), tabBarIcon: ({ color, size }) => <History color={color} size={size} /> }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: t('tabs.profile'), tabBarIcon: ({ color, size }) => <User color={color} size={size} /> }} />
     </Tab.Navigator>
   );
 }
 
-export default function App() {
-  useEffect(() => {
-    if (__DEV__) {
-      try {
-        verifyInstallation();
-      } catch (error) {
-        console.error(error);
-      }
-    }
-  }, []);
+function Root() {
+  const { user, ready } = useAuth();
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+  return (
+    <NavigationContainer theme={navTheme}>
+      <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+        {user ? (
+          <>
+            <Stack.Screen name="Main" component={Tabs} />
+            <Stack.Screen name="Exercise" component={ExerciseScreen} />
+            <Stack.Screen name="Result" component={ResultScreen} />
+          </>
+        ) : (
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
 
+export default function App() {
   return (
     <SafeAreaProvider>
-      <NavigationContainer linking={linking}>
-        <StatusBar style="light" />
-        <Stack.Navigator
-          initialRouteName="Login"
-          screenOptions={{
-            headerShown: false,
-            cardStyle: { backgroundColor: '#0A0E1A' }
-          }}
-        >
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-          <Stack.Screen name="Calibration" component={CalibrationScreen} />
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          <Stack.Screen name="PlanGenerationLoading" component={PlanGenerationLoadingScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="PlanSuccess" component={PlanSuccessScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="FullPlan" component={FullPlanScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="WorkoutDay" component={WorkoutDayScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="PlanSettings" component={PlanSettingsScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Main" component={TabNavigator} />
-          <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-          <Stack.Screen name="Exercise" component={ExerciseScreen} />
-          <Stack.Screen name="AnalysisResult" component={AnalysisResultScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <LanguageProvider>
+        <AuthProvider>
+          <StatusBar style="light" />
+          <Root />
+        </AuthProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

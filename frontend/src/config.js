@@ -1,6 +1,7 @@
-// Export configuration based on environment
-const DEV_API_URL = 'http://192.168.1.7:8000';
-const PROD_API_URL = 'https://your-backend-url.onrender.com'; // User needs to replace this
+// Backend base URL. Set EXPO_PUBLIC_API_URL in frontend/.env (see .env.example).
+// On a physical phone use your computer's LAN address, e.g. http://192.168.1.5:8000
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-export const API_URL = __DEV__ ? DEV_API_URL : PROD_API_URL;
-export const WS_URL = API_URL.replace(/^http/, 'ws');
+// Optional. Without these the app runs in local demo mode (no server-side accounts).
+export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
