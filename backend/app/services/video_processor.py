@@ -3,7 +3,17 @@
 import logging
 from typing import Dict, List
 
+import sys
+import types
+
 import cv2
+
+try:  # mediapipe imports matplotlib at module level (drawing helpers only; pose extraction never uses it)
+    import matplotlib  # noqa: F401
+except ImportError:  # slim deployments (Vercel) leave it out to stay under the bundle size limit
+    for _name in ("matplotlib", "matplotlib.pyplot"):
+        sys.modules.setdefault(_name, types.ModuleType(_name))
+
 import mediapipe as mp
 
 logger = logging.getLogger(__name__)

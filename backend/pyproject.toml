@@ -1,0 +1,30 @@
+[project]
+name = "repify-api"
+version = "2.0.0"
+description = "Repify API: pose extraction (MediaPipe) and exercise technique analysis"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.110",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "python-multipart>=0.0.9",
+    "numpy<2",
+    "opencv-python-headless==4.10.0.84",
+    "mediapipe==0.10.14",
+    "protobuf>=4.25,<5",
+    "google-genai>=1.0",
+]
+
+# mediapipe 0.10.14 declares jax, jaxlib, scipy, matplotlib, sounddevice and opencv-contrib-python as
+# hard dependencies, but the Pose solution used here needs none of them (~700 MB). Vercel's Python
+# bundle limit is 500 MB, so these are dropped. `app/services/video_processor.py` stubs matplotlib,
+# which mediapipe imports at module level but never uses for pose extraction.
+[tool.uv]
+override-dependencies = [
+    "jax; sys_platform == 'never'",
+    "jaxlib; sys_platform == 'never'",
+    "scipy; sys_platform == 'never'",
+    "matplotlib; sys_platform == 'never'",
+    "sounddevice; sys_platform == 'never'",
+    "opencv-contrib-python; sys_platform == 'never'",
+]
