@@ -1,35 +1,11 @@
-# Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-
-# Database
-sqlalchemy==2.0.23
-alembic==1.13.0
-asyncpg==0.29.0
-psycopg2-binary==2.9.9
-
-# Validation & Settings
-pydantic==2.5.3
-pydantic-settings==2.1.0
-
-# Math & Science
-numpy==1.26.2
-
-# HTTP
-httpx==0.25.2
-
-# Environment
-python-dotenv==1.0.0
-
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.23.2
-
-# Logging
-loguru==0.7.2
-
-# CORS
-python-multipart==0.0.6
-
-# AI
-google-generativeai
+# Python 3.11 is required: mediapipe 0.10.14 (the last release with the
+# `mp.solutions` API used here) has no wheels for newer interpreters.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+python-multipart>=0.0.9
+numpy<2
+opencv-python-headless==4.10.0.84
+mediapipe==0.10.14
+google-genai>=1.0
