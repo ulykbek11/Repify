@@ -8,6 +8,10 @@ Film a set, and Repify finds your body landmarks, converts them into joint angle
 |---|---|---|---|---|
 | ![Sign in](docs/screenshots/01-sign-in.png) | ![Train](docs/screenshots/02-train.png) | ![Result](docs/screenshots/03-result.png) | ![Result in Russian](docs/screenshots/04-result-ru.png) | ![History in Russian](docs/screenshots/05-history-ru.png) |
 
+| Exercise list (RU) | Pull-up: camera and checks | Bench press result | Plank result |
+|---|---|---|---|
+| ![Exercise list](docs/screenshots/10-home-ru.png) | ![Pull-up screen](docs/screenshots/07-exercise-pullup.png) | ![Bench press result](docs/screenshots/09-result-bench.png) | ![Plank result](docs/screenshots/08-result-plank.png) |
+
 The result screen draws the detected pose at the key point of the movement. The screenshots above come from the built-in synthetic sample (see [Demo without a video](#demo-without-a-video-and-demo-mode-without-a-backend)).
 
 ## How it works
