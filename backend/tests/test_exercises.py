@@ -296,14 +296,14 @@ def test_cors_regex_allows_vercel_previews_only(monkeypatch):
     import app.config as config
     import app.main as main
 
-    monkeypatch.setenv("CORS_ORIGIN_REGEX", r"^https://repify(-[a-z0-9-]+)?-ulykbeks-projects\.vercel\.app$")
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", r"^https://repify(-[a-z0-9-]+)?-ulykbeks-projects(-[a-z0-9]+)?\.vercel\.app$")
     monkeypatch.setenv("CORS_ORIGINS", "https://repify.vercel.app")
     importlib.reload(config)
     importlib.reload(main)
     try:
         c = TestClient(main.app)
-        ok = c.get("/health", headers={"Origin": "https://repify-git-fix-repify-working-ulykbeks-projects.vercel.app"})
-        assert ok.headers.get("access-control-allow-origin") == "https://repify-git-fix-repify-working-ulykbeks-projects.vercel.app"
+        ok = c.get("/health", headers={"Origin": "https://repify-git-fix-repify-working-ulykbeks-projects-8101f40c.vercel.app"})
+        assert ok.headers.get("access-control-allow-origin") == "https://repify-git-fix-repify-working-ulykbeks-projects-8101f40c.vercel.app"
         assert c.get("/health", headers={"Origin": "https://repify.vercel.app"}).headers.get("access-control-allow-origin")
         assert not c.get("/health", headers={"Origin": "https://evil.vercel.app"}).headers.get("access-control-allow-origin")
     finally:

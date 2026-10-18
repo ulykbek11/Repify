@@ -19,7 +19,7 @@ services:
         value: https://repify.vercel.app,http://localhost:8081
       # Vercel preview URLs of the repify project (any deployment hash and branch alias).
       - key: CORS_ORIGIN_REGEX
-        value: ^https://repify(-[a-z0-9-]+)?-ulykbeks-projects\.vercel\.app$
+        value: ^https://repify(-[a-z0-9-]+)?-ulykbeks-projects(-[a-z0-9]+)?\.vercel\.app$
       # Optional: set a Gemini key in the dashboard to use Gemini instead of the rule-based analyzer.
       - key: GEMINI_API_KEY
         sync: false

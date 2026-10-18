@@ -128,7 +128,7 @@ To attach the backend to the web app:
 1. In Render choose **New -> Blueprint**, select this repository and branch, and apply it. Optionally set `GEMINI_API_KEY` for Gemini analysis (the rule-based analyzer is used without it).
 2. Wait for the deploy, then open `https://<service>.onrender.com/health`. It should list the 14 exercises.
 3. In Vercel open the `repify` project -> Settings -> Environment Variables and add `EXPO_PUBLIC_API_URL=https://<service>.onrender.com` (no trailing slash) for Production and Preview. It is read at build time, so redeploy afterwards.
-4. If your web URL is not one of the `repify*-ulykbeks-projects.vercel.app` previews, add it to `CORS_ORIGINS` (exact origin, comma separated) or adjust `CORS_ORIGIN_REGEX` on the Render service.
+4. If your web URL is not one of the `repify*-ulykbeks-projects*.vercel.app` URLs, add it to `CORS_ORIGINS` (exact origin, comma separated) or adjust `CORS_ORIGIN_REGEX` on the Render service.
 
 **Mobile:** EAS Build (`eas build`) once a backend URL is available.
 
