@@ -12,7 +12,7 @@ from app.services.exercise_messages import EX_MESSAGES
 from app.services.local_analyzer import analyze_local, deepest_frame, has_message, segment_reps
 from app.services.pose_features import build_frames, landmarks_to_named
 from tests.synthetic_poses import (
-    DEFAULT_DEPTHS, GOOD_DEPTHS, FIXTURE_EXERCISES, generate_pose_sequence,
+    GOOD_DEPTHS, FIXTURE_EXERCISES, generate_pose_sequence,
 )
 
 client = TestClient(app)

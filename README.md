@@ -1,36 +1,44 @@
 # Repify
 
-AI feedback on the technique of 14 exercises from a single side-view video.
+AI feedback on the technique of 14 exercises from a live camera or a single side-view video.
 
-Film a set, and Repify finds your body landmarks, converts them into joint angles, counts the repetitions (or times the hold) and tells you what to fix: depth, lockout, torso lean, knee travel, body line, swing. It covers squat, deadlift, bench press, overhead press, push-up, pull-up, barbell row, lunge, Romanian deadlift, bicep curl, plank, hip thrust, dip and lat pulldown. The app runs on iOS, Android and the web (Expo / React Native), and speaks English and Russian.
+Turn on your camera (or upload a clip), do a set, and Repify finds your body landmarks, converts them into joint angles, counts the repetitions (or times the hold) and tells you what to fix: depth, lockout, torso lean, knee travel, body line, swing. It covers squat, deadlift, bench press, overhead press, push-up, pull-up, barbell row, lunge, Romanian deadlift, bicep curl, plank, hip thrust, dip and lat pulldown. The app runs on iOS, Android and the web (Expo / React Native), and speaks English and Russian.
 
-| Sign in | Train | Result | Result (RU) | History (RU) |
-|---|---|---|---|---|
-| ![Sign in](docs/screenshots/01-sign-in.png) | ![Train](docs/screenshots/02-train.png) | ![Result](docs/screenshots/03-result.png) | ![Result in Russian](docs/screenshots/04-result-ru.png) | ![History in Russian](docs/screenshots/05-history-ru.png) |
+| Live camera | Recording with live rep count | Result |
+|---|---|---|
+| ![Live camera with skeleton overlay](docs/screenshots/01-live-camera.png) | ![Recording a set](docs/screenshots/02-live-recording.png) | ![Result](docs/screenshots/03-result.png) |
 
-| Exercise list (RU) | Pull-up: camera and checks | Bench press result | Plank result |
+| Phone browser | Result (RU) | Exercise list (RU) | Analysis service unavailable |
 |---|---|---|---|
-| ![Exercise list](docs/screenshots/10-home-ru.png) | ![Pull-up screen](docs/screenshots/07-exercise-pullup.png) | ![Bench press result](docs/screenshots/09-result-bench.png) | ![Plank result](docs/screenshots/08-result-plank.png) |
+| ![Live camera on a phone](docs/screenshots/04-mobile-live.png) | ![Result in Russian](docs/screenshots/05-result-ru.png) | ![Exercise list](docs/screenshots/06-home-ru.png) | ![Service unavailable](docs/screenshots/07-service-unavailable.png) |
 
-The result screen draws the detected pose at the key point of the movement. The screenshots above come from the built-in synthetic sample (see [Demo without a video](#demo-without-a-video-and-demo-mode-without-a-backend)).
+The screenshots were taken in headless Chromium with a camera feed of a real squat clip standing in for a webcam (Chromium's `--use-file-for-fake-video-capture`), so the pose model, the overlay, the live counter and the analysis are the real code paths. The skeleton is drawn by MediaPipe on the live frames; the result screen draws the pose at the key point of the movement. Nothing in the app is simulated: if the analysis service is not reachable, the app says so.
 
 ## How it works
 
 ```
- Expo app (iOS / Android / web)                FastAPI backend
- ------------------------------                -----------------------------------------------
- pick or record a video      --- video ---->   /api/extract-poses
-                                                 OpenCV frame sampling -> MediaPipe Pose
-                                               <-- 33 landmarks per frame --
- pose sequence               --- JSON ----->   /api/analyze
-                                                 landmarks -> side selection -> knee/hip/torso angles
-                                                 Gemini (if GEMINI_API_KEY is set)
-                                                   -> otherwise / on failure: local rule-based analyzer
- score, reps, issues, tips   <-- JSON ------   reps, score, errors, strengths, coach tip, pose preview
- history stored on the device
+ Web (browser)                                          FastAPI backend (Vercel / container)
+ ------------------------------------------             ---------------------------------------------
+ camera (getUserMedia) or an uploaded video
+ MediaPipe Tasks Vision (WASM, GPU -> CPU)
+   33 landmarks per frame, on the device
+   skeleton overlay, framing + light cues,
+   live rep counter (preview)
+ landmarks only (no images)         --- JSON ---->      /api/analyze
+                                                          landmarks -> side selection -> angles
+                                                          Gemini (if GEMINI_API_KEY is set)
+                                                            -> otherwise / on failure: local rules
+ score, reps, per-rep issues, tips  <-- JSON -----      reps, score, errors, strengths, coach tip
+
+ iOS / Android
+ ------------------------------------------
+ record or pick a video             --- video --->      /api/extract-poses (MediaPipe Pose on the server)
+ landmarks                          <-- JSON -----
+ pose sequence                      --- JSON ---->      /api/analyze
 ```
 
-- **Pose estimation:** MediaPipe Pose (33 landmarks) on the server, frames downscaled to 640x480.
+- **Pose estimation:** MediaPipe Pose (33 landmarks). On the web it runs in the browser (Tasks Vision, GPU delegate with a CPU fallback) and the video never leaves the device; on iOS and Android the server runs it on frames downscaled to 640x480.
+- **Live camera (web):** a 3-2-1 countdown, then landmarks are collected for up to 60 s. The preview checks that the body is fully visible, large enough, side-on and lit, and counts reps with the same thresholds as the server (read from `GET /api/exercises`). The authoritative rep count, score and per-rep issues come from the analysis after you finish the set.
 - **Biomechanics:** angles at the knee (hip-knee-ankle), hip (shoulder-hip-knee) and elbow (shoulder-elbow-wrist), the body line (shoulder-hip-ankle), torso inclination, knee position relative to the toes, heel height, and a few landmark positions (wrist over elbow, nose above the bar, hip sway).
 - **Rep counting:** a small state machine over the smoothed angle signal of each exercise: rest position, an excursion past a threshold, return to rest. Exercises that start low (overhead press, hip thrust) use the mirrored signal. The plank is timed from frame timestamps instead.
 - **One registry:** every exercise is declared in `backend/app/services/exercises.py` (signal, thresholds, camera, checks); feedback strings in EN and RU live in `exercise_messages.py`.
@@ -38,7 +46,7 @@ The result screen draws the detected pose at the key point of the movement. The 
   - *Local analyzer* (`backend/app/services/local_analyzer.py`): deterministic rules, no network, unit tested. It is the default.
   - *Gemini* (`gemini_analyzer.py`): receives compact joint data (not video) and returns a JSON verdict in the user's language. If the call fails, the API falls back to the local analyzer.
 - **Personalisation:** the thigh to shin ratio is measured from the standing frames, so long-femur lifters are not penalised for extra forward lean.
-- **Accounts:** Supabase Auth when configured, otherwise a local demo account (no server). Workout history is kept on the device.
+- **No accounts:** name, height, language and workout history are stored on the device only (AsyncStorage / local storage).
 
 ## Supported exercises
 
@@ -61,17 +69,16 @@ Filming rule for all of them: **side view**, camera still, whole body in frame, 
 | Dip (`dip`) | Side, chest height | Elbow angle | 150 or more, below 115, back | Elbow 100 or less | Depth, lockout, forward lean over 50 |
 | Lat pulldown (`lat_pulldown`) | Side, shoulder height | Elbow angle | 150 or more, below 110, back | Elbow 100 or less | Range, full stretch at the top, lean over 35, torso rocking over 15 |
 
-**All thresholds are heuristics.** They come from common coaching cues and were checked on synthetic landmark sequences (`backend/tests/test_exercises.py`), not on coach-labelled video, and they are defined in one place (`backend/app/services/exercises.py`) so they are easy to tune. Single-camera 2D analysis cannot judge elbow flare, knee valgus, spinal rounding or grip; those are not claimed. `GET /api/exercises` returns the same table as JSON.
+**All thresholds are heuristics.** They come from common coaching cues and were checked on generated landmark fixtures in the unit tests (`backend/tests/test_exercises.py`), not on coach-labelled video, and they are defined in one place (`backend/app/services/exercises.py`) so they are easy to tune. Single-camera 2D analysis cannot judge elbow flare, knee valgus, spinal rounding or grip; those are not claimed. `GET /api/exercises` returns the same table as JSON.
 
 ## Tech stack
 
 | Layer | Tools |
 |---|---|
-| App | Expo SDK 54, React Native 0.81, React Navigation 7, react-native-svg, lucide icons, expo-image-picker |
+| App | Expo SDK 54, React Native 0.81, React Navigation 7, react-native-svg, lucide icons, expo-image-picker, MediaPipe Tasks Vision (web) |
 | i18n | Small context-based dictionary (`frontend/src/i18n`), EN and RU, language persisted on the device |
 | Backend | Python 3.11, FastAPI, Pydantic v2, MediaPipe 0.10.14, OpenCV, google-genai |
-| Auth | Supabase Auth (optional) |
-| Tests | pytest (geometry, rep segmentation, scoring for all 14 exercises on synthetic landmark sequences, API, Gemini fallback) |
+| Tests | pytest (geometry, rep segmentation, scoring for all 14 exercises on generated landmark fixtures in `backend/tests`, API, Gemini fallback); node tests for the live-camera framing and rep counter |
 
 ## Run it locally
 
@@ -103,11 +110,13 @@ npx expo start                  # press w for web, or scan the QR code with Expo
 
 Production web build: `npm run build:web` (output in `frontend/dist`).
 
-## Demo without a video, and demo mode without a backend
+## Try it
 
-Every exercise page has **Run a sample analysis** (the Train tab also has one for squat). The backend generates a synthetic side-view set for that exercise (three reps with one deliberately weak rep, or a 14 second plank that sags at the end) and runs it through the same angle, rep-counting and scoring code as a real upload. The result is labelled as synthetic in the UI.
+Open the web app, choose an exercise, press **Turn on camera**, allow the camera, step back until the picture says *Good position* and press **Start set**. After the countdown do your reps and press **Finish set**. You can also **upload a video**: on the web it is analysed in your browser, so it is not uploaded either way; only the landmarks are sent.
 
-The sample results for all 14 exercises in English and Russian are also bundled with the app (`frontend/src/data/samples.json`, written by `backend/scripts/export_samples.py`, kept in sync by a test). When `EXPO_PUBLIC_API_URL` is empty the app runs in **demo mode**: samples come from the bundle, no server is needed, and uploading a video is hidden. This is how the Vercel preview works until a backend is attached.
+Nothing in the app is simulated: there are no built-in results. If `EXPO_PUBLIC_API_URL` is empty or the API does not respond, the app shows *Analysis service unavailable* and does not produce a result.
+
+Camera permission denied, no camera, a camera that is busy, an insecure (non-HTTPS) page, a body that is cut off or too far away, a front view and a dark room each have their own message. getUserMedia needs HTTPS (or `localhost`).
 
 ## Configuration
 
@@ -118,12 +127,11 @@ The sample results for all 14 exercises in English and Russian are also bundled 
 | `CORS_ORIGINS` | backend | Comma-separated browser origins allowed to call the API. |
 | `CORS_ORIGIN_REGEX` | backend | Optional regex for origins you cannot list, such as Vercel preview URLs. |
 | `MAX_UPLOAD_MB` | backend | Upload limit for `/api/extract-poses` (default 60). |
-| `EXPO_PUBLIC_API_URL` | app | Backend base URL. Empty means demo mode (bundled samples, no upload). |
-| `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` | app | Optional. Enables real accounts. |
+| `EXPO_PUBLIC_API_URL` | app | Backend base URL. Required to analyse anything; empty shows "Analysis service unavailable". Read at build time. Production points at the `repify-api` Vercel project. |
 
 ## Deploying
 
-**Web app (Vercel).** Project root directory `frontend`, build command `npm run build:web`, output `dist` (`frontend/vercel.json` also rewrites every route to `index.html`). Without `EXPO_PUBLIC_API_URL` the build runs in demo mode (bundled sample analyses, no upload), so it works on its own.
+**Web app (Vercel).** Project root directory `frontend`, build command `npm run build:web`, output `dist` (`frontend/vercel.json` also rewrites every route to `index.html`). Set `EXPO_PUBLIC_API_URL` to the backend (for production `https://repify-api.vercel.app`); without it the app reports that the analysis service is unavailable.
 
 **Backend (any container host).** `render.yaml` is a Render blueprint for `backend/Dockerfile`; Railway and Fly.io work with the same Dockerfile (give it about 1 GB of memory, MediaPipe plus OpenCV need it while a video is processed).
 
@@ -138,7 +146,7 @@ To attach the backend to the web app:
 
 **Backend on Vercel (no container host).** The same FastAPI app also runs as a Vercel Python function (`backend/pyproject.toml`, `vercel.json`, `.python-version`). Create a second Vercel project with Root Directory `backend` (framework FastAPI), set `CORS_ORIGINS` / `CORS_ORIGIN_REGEX` as above, then point `EXPO_PUBLIC_API_URL` of the web project at it. Things to know:
 
-- MediaPipe 0.10.14 declares jax, scipy and matplotlib as dependencies (about 700 MB) that the Pose solution never uses. `pyproject.toml` drops them with `override-dependencies`, and `video_processor.py` stubs the `matplotlib` import, which keeps the bundle near 300 MB (Vercel's Python limit is 500 MB).
+- MediaPipe 0.10.14 declares jax, scipy and matplotlib as dependencies (about 700 MB) that the Pose solution never uses. `pyproject.toml` drops them with `override-dependencies`, and `video_processor.py` registers an empty `matplotlib` module when it is missing, which keeps the bundle near 300 MB (Vercel's Python limit is 500 MB).
 - Vercel rejects request bodies above 4.5 MB, so large videos cannot be uploaded to the API. The web build therefore runs MediaPipe Tasks Vision in the browser and sends only the landmarks (a few hundred KB) to `/api/analyze`. The native app still uploads to `/api/extract-poses`, which on Vercel works for clips up to 4 MB.
 - Gemini is optional. Without `GEMINI_API_KEY` the deterministic rule-based analyzer runs (about 100 ms). With a key, the call is capped at 25 s and falls back to the rules on any error.
 
@@ -148,7 +156,8 @@ To attach the backend to the web app:
 - Lifts with a barbell or bar are judged from the wrist and arm landmarks only; the bar itself is not detected. Heavy occlusion (plates, a rack, a bench) can degrade pose quality.
 - Lunges use the leg nearest to the camera; the rear and front leg are not told apart.
 - Thresholds in the local analyzer are reasonable heuristics, not validated against coach-labelled data.
-- The pipeline has been verified end to end on a still image of a person and on synthetic sequences; it has not been validated on a set of real lifting videos. The new exercises (everything except squat and deadlift) have only been exercised on synthetic sequences.
+- The web live-camera flow has been verified in headless Chromium with a recorded squat clip as the camera feed, but not yet on a range of real phones and webcams, and the thresholds have not been validated on a set of real lifting videos. The exercises other than squat and deadlift have only been exercised on generated fixtures.
+- The pose model and WASM runtime are loaded from public CDNs (jsDelivr and Google Cloud Storage) the first time the camera or an upload is used.
 - The API has no authentication or rate limiting. Put it behind your own gateway before exposing it publicly.
 - This is a portfolio project, not medical or professional coaching advice.
 
@@ -159,8 +168,8 @@ The project went through several iterations: an ML-model experiment for techniqu
 ## Repository layout
 
 ```
-backend/    FastAPI service, analyzers, tests, Dockerfile, scripts/export_samples.py
-frontend/   Expo app (screens, i18n, API client, auth, bundled sample analyses)
+backend/    FastAPI service, analyzers, tests (with generated landmark fixtures), Dockerfile
+frontend/   Expo app (screens, live camera, i18n, API client, on-device profile and history)
 docs/       screenshots
 render.yaml Render blueprint for the backend
 ```

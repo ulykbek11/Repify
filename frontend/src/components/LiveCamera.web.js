@@ -230,7 +230,7 @@ export default function LiveCamera({ exercise, spec, disabled, hold, onSession }
         setPhaseBoth('idle');
         return;
       }
-      cuesKeyRef.current = '';
+      cuesKeyRef.current = 'noBody';
       setCues({ cues: ['noBody'], blocking: true });
       setPhaseBoth('ready');
       rafRef.current = requestAnimationFrame(tick);

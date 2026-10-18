@@ -48,6 +48,11 @@ test('a small body is too far away', () => {
   assert.deepEqual(checkFraming(small, ['hip', 'knee', 'ankle', 'shoulder']).cues, ['tooFar']);
 });
 
+test('a deep squat is not mistaken for standing too far away', () => {
+  const squat = standing({ 11: { y: 0.55 }, 23: { x: 0.42, y: 0.7 }, 25: { x: 0.62, y: 0.78 }, 27: { x: 0.5, y: 0.93 }, 0: { y: 0.4 } });
+  assert.deepEqual(checkFraming(squat, ['hip', 'knee', 'ankle', 'shoulder']).cues, []);
+});
+
 test('a front view asks the user to turn side-on, without blocking', () => {
   const front = standing({ 11: { x: 0.4, y: 0.25, visibility: 0.9 }, 12: { x: 0.62, y: 0.25, visibility: 0.9 }, 23: { x: 0.45, y: 0.52, visibility: 0.9 }, 24: { x: 0.57, y: 0.52, visibility: 0.9 } });
   const r = checkFraming(front, ['hip', 'knee', 'ankle', 'shoulder']);

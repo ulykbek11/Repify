@@ -9,7 +9,7 @@ services:
     dockerContext: ./backend
     # MediaPipe + OpenCV need roughly 1 GB while a video is processed. The free plan (512 MB) is too
     # small and the starter plan (512 MB) is tight; "standard" (2 GB) is the safe choice for uploads.
-    # The sample analysis and /api/analyze alone would run on far less.
+    # /api/analyze alone (landmarks in, result out) would run on far less.
     plan: standard
     healthCheckPath: /health
     autoDeploy: true

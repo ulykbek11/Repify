@@ -42,8 +42,10 @@ export function checkFraming(lms, required = DEFAULT_REQUIRED) {
   else if (weak.length) cues.push('hidden');
 
   if (!cues.length) {
-    const xs = pts.map((p) => p.x);
-    const ys = pts.map((p) => p.y);
+    // The head counts too, so a deep squat (shoulders close to the knees) is not mistaken for "too far".
+    const box = vis(lms[0]) > MIN_VISIBILITY ? [...pts, lms[0]] : pts;
+    const xs = box.map((p) => p.x);
+    const ys = box.map((p) => p.y);
     const extent = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
     const needsFeet = names.includes('ankle');
     if (extent < (needsFeet ? 0.4 : 0.2)) cues.push('tooFar');
