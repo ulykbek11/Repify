@@ -360,6 +360,57 @@ _add(Spec(
 
 EXERCISE_IDS: List[str] = list(SPECS)
 
+VALID_MODES = ("dip", "peak", "hold")
+
+
+def register(spec: Spec, messages: Optional[Dict[str, Dict[str, str]]] = None,
+             aliases: Tuple[str, ...] = ()) -> Spec:
+    """Add an exercise at runtime (or from your own module) and validate it.
+
+    ``messages`` is ``{"en": {...}, "ru": {...}}`` with ``err_<check>`` and ``tip_<check>`` for every
+    check (see ``exercise_messages.py``). ``aliases`` are extra phrases that
+    ``normalize_exercise`` maps to this exercise. Raises ``ValueError`` when the spec is
+    incomplete, so a typo fails loudly instead of silently producing no feedback.
+    See ``docs/ADDING_EXERCISES.md``.
+    """
+    from app.services.exercise_messages import EX_MESSAGES
+
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", spec.id):
+        raise ValueError(f"Exercise id must be snake_case, got {spec.id!r}")
+    if spec.id in SPECS:
+        raise ValueError(f"Exercise {spec.id!r} is already registered")
+    if spec.mode not in VALID_MODES:
+        raise ValueError(f"mode must be one of {VALID_MODES}, got {spec.mode!r}")
+    if not spec.required:
+        raise ValueError("required joints must not be empty")
+    keys = [c.key for c in spec.checks]
+    if len(keys) != len(set(keys)):
+        raise ValueError("check keys must be unique")
+    if spec.mode != "hold" and messages is not None:
+        for language in ("en", "ru"):
+            texts = messages.get(language, {})
+            missing = [f"{prefix}_{k}" for k in keys for prefix in ("err", "tip") if f"{prefix}_{k}" not in texts]
+            if missing:
+                raise ValueError(f"Missing {language} messages: {', '.join(missing)}")
+    _add(spec)
+    EXERCISE_IDS.append(spec.id)
+    if messages is not None:
+        EX_MESSAGES[spec.id] = messages
+    for alias in aliases:
+        _ALIASES.insert(0, (alias.lower(), spec.id))
+    return spec
+
+
+def unregister(exercise_id: str) -> None:
+    """Remove an exercise added with :func:`register` (used by tests)."""
+    from app.services.exercise_messages import EX_MESSAGES
+
+    SPECS.pop(exercise_id, None)
+    EX_MESSAGES.pop(exercise_id, None)
+    if exercise_id in EXERCISE_IDS:
+        EXERCISE_IDS.remove(exercise_id)
+    _ALIASES[:] = [(n, e) for n, e in _ALIASES if e != exercise_id]
+
 # Names and phrases accepted by the API, mapped to exercise ids. Longer phrases
 # are tested first so "romanian deadlift" is not read as "deadlift".
 _ALIASES: List[Tuple[str, str]] = [

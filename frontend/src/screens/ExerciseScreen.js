@@ -51,7 +51,7 @@ export default function ExerciseScreen() {
     try {
       const result = await sampleAnalysis(exercise, language);
       navigation.navigate('Result', { result, exercise });
-    } catch (e) {
+    } catch {
       setError(t('exercise.errNetwork'));
     } finally {
       setStage(null);

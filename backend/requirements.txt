@@ -1,11 +1,11 @@
-# Python 3.11 is required: mediapipe 0.10.14 (the last release with the
-# `mp.solutions` API used here) has no wheels for newer interpreters.
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pydantic>=2.6
-pydantic-settings>=2.2
-python-multipart>=0.0.9
-numpy<2
+# Python 3.11 or 3.12. mediapipe 0.10.14 (the last release with the `mp.solutions` API used here)
+# has no wheels for Python 3.13+.
+fastapi==0.144.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+pydantic-settings==2.16.0
+python-multipart==0.0.32
+numpy==1.26.4
 opencv-python-headless==4.10.0.84
 mediapipe==0.10.14
-google-genai>=1.0
+google-genai==2.31.0

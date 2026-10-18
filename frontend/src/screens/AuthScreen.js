@@ -4,8 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Activity, Lock, Mail, User as UserIcon, UserRound } from 'lucide-react-native';
 import { colors, radius } from '../theme';
 import { useLanguage } from '../i18n';
-import { useAuth } from '../lib/auth';
-import { isCloudAuth } from '../lib/auth';
+import { isCloudAuth, useAuth } from '../lib/auth';
 import { Button, LanguageSwitch } from '../components/ui';
 
 function Field({ icon: Icon, ...props }) {

@@ -29,7 +29,7 @@ export default function HomeScreen() {
     try {
       const result = await sampleAnalysis('squat', language);
       navigation.navigate('Result', { result, exercise: 'squat' });
-    } catch (error) {
+    } catch {
       setSampleError(t('exercise.errNetwork'));
     } finally {
       setSampleBusy(false);
