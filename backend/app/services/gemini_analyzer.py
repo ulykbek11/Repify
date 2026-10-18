@@ -9,6 +9,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app.config import settings
+from app.services.exercises import SPECS
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +42,39 @@ def build_prompt(
     lang = LANGUAGE_NAMES.get(language, "English")
     height = f"User height: {user_height_cm} cm." if user_height_cm else "User height unknown."
 
+    spec = SPECS.get(exercise)
+    if spec is None:
+        guidance = "Judge the technique from the joint angles."
+    elif spec.mode == "hold":
+        guidance = (
+            "This is a timed hold, not a repetition exercise. Report total_reps as 0. "
+            "Judge the straightness of the shoulder-hip-ankle line (body_line close to 180 is straight, "
+            "hips sagging or piking below ~160 is a fault) and whether the shoulders stay over the elbows. "
+            "Use t_ms (milliseconds) to time the hold and mention the hold time in strengths or errors."
+        )
+    else:
+        direction = (
+            f"falls from about {spec.rest:.0f} (start position) below {spec.enter:.0f}"
+            if spec.mode == "dip"
+            else f"rises from about {spec.rest:.0f} (start position) above {spec.enter:.0f}"
+        )
+        guidance = (
+            f"Count repetitions with {spec.signal_label}: a repetition is a full cycle in which the signal "
+            f"{direction} and returns to the start position. Required camera view: {spec.camera}. "
+            f"Typical form checks for this exercise: {', '.join(c.key for c in spec.checks)}."
+        )
+
     return f"""You are a strength-training biomechanics coach.
 Analyse the "{exercise}" recorded from a {camera_angle} camera. {height}
 
-Calibration: from the frames where the person stands upright (knee and hip angle near 170-180),
-estimate the thigh/shin proportion. A long femur makes more forward torso lean normal, not an error.
-
-Repetition counting: knee_angle (hip-knee-ankle) near 180 means standing, below ~100 is a deep squat.
-hip_angle (shoulder-hip-knee) is the hinge angle. A repetition is a full cycle: top (>160), bottom, top (>160).
+{guidance}
+Joint names are for the body side the camera sees best. knee_angle is hip-knee-ankle, hip_angle is
+shoulder-hip-knee, elbow_angle is shoulder-elbow-wrist, body_line is shoulder-hip-ankle and torso_lean is the
+torso inclination from vertical. Image y points down.
+For squat, deadlift, Romanian deadlift and lunge, estimate the thigh/shin proportion from the upright frames:
+a long femur makes more forward torso lean normal, not an error.
 Ignore frames whose confidence is below 0.5. Do not count unfinished movements.
-
-Technique checks visible from the side: depth, torso lean, knees relative to toes, heels on the floor,
-spine neutrality. Do NOT judge knee valgus (not visible from the side).
+Do NOT judge what a single side view cannot show (knee valgus, elbow flare, spinal rounding).
 
 DATA:
 {json.dumps(payload)}

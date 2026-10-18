@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.analysis import router as analysis_router
 from app.config import settings
 from app.services import gemini_analyzer
+from app.services.exercises import EXERCISE_IDS
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -16,7 +17,7 @@ logging.basicConfig(
 
 app = FastAPI(
     title="Repify API",
-    description="Pose extraction (MediaPipe) and squat/deadlift technique analysis (Gemini or local rules).",
+    description="Pose extraction (MediaPipe) and technique analysis for 14 exercises (Gemini or local rules).",
     version="2.0.0",
 )
 
@@ -37,6 +38,6 @@ async def health() -> dict:
         "status": "ok",
         "service": "repify-api",
         "version": app.version,
-        "exercises": ["squat", "deadlift"],
+        "exercises": EXERCISE_IDS,
         "engine": "gemini" if gemini_analyzer.is_configured() else "local",
     }

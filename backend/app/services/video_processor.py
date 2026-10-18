@@ -38,6 +38,7 @@ class VideoProcessor:
                 if not ok:
                     break
                 keep = index % step == 0
+                t_ms = cap.get(cv2.CAP_PROP_POS_MSEC)  # position of the frame just read
                 index += 1
                 if not keep:
                     continue
@@ -45,14 +46,14 @@ class VideoProcessor:
                 result = pose.process(image)
                 if not result.pose_landmarks:
                     continue
-                poses.append(
-                    {
-                        mp.solutions.pose.PoseLandmark(i).name.lower(): {
-                            "x": lm.x, "y": lm.y, "z": lm.z, "visibility": lm.visibility,
-                        }
-                        for i, lm in enumerate(result.pose_landmarks.landmark)
+                landmarks = {
+                    mp.solutions.pose.PoseLandmark(i).name.lower(): {
+                        "x": lm.x, "y": lm.y, "z": lm.z, "visibility": lm.visibility,
                     }
-                )
+                    for i, lm in enumerate(result.pose_landmarks.landmark)
+                }
+                landmarks["_t_ms"] = t_ms  # keeps real timing for hold exercises such as the plank
+                poses.append(landmarks)
         cap.release()
         logger.info("Extracted %d poses from %d frames", len(poses), index)
         return poses

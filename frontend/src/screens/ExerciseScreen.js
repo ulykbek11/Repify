@@ -3,10 +3,12 @@ import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Camera, CheckCircle2, Upload } from 'lucide-react-native';
+import { ArrowLeft, Camera, CheckCircle2, FlaskConical, ScanLine, Upload, Video } from 'lucide-react-native';
 import { colors } from '../theme';
 import { useLanguage } from '../i18n';
-import { ApiError, analyze, extractPoses } from '../lib/api';
+import { ApiError, analyze, extractPoses, sampleAnalysis } from '../lib/api';
+import { DEMO_MODE } from '../config';
+import { EXERCISE_ICONS, isHold } from '../data/exercises';
 import { Button, Card, SectionTitle } from '../components/ui';
 
 export default function ExerciseScreen() {
@@ -43,8 +45,22 @@ export default function ExerciseScreen() {
     if (!picked.canceled && picked.assets?.[0]) process(picked.assets[0]);
   }
 
+  async function runSample() {
+    setError(null);
+    setStage('sample');
+    try {
+      const result = await sampleAnalysis(exercise, language);
+      navigation.navigate('Result', { result, exercise });
+    } catch (e) {
+      setError(t('exercise.errNetwork'));
+    } finally {
+      setStage(null);
+    }
+  }
+
   const busy = stage !== null;
-  const tips = ['exercise.tip1', 'exercise.tip2', 'exercise.tip3', 'exercise.tip4'];
+  const tips = ['exercise.tip1', 'exercise.tip2', isHold(exercise) ? 'exercise.tipHold' : 'exercise.tip3', 'exercise.tip4'];
+  const Icon = EXERCISE_ICONS[exercise];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -57,6 +73,25 @@ export default function ExerciseScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
+        <Card style={{ marginBottom: 14 }}>
+          <View style={styles.cardHead}>
+            <View style={styles.iconBox}>{Icon ? <Icon size={22} color={colors.primary} /> : null}</View>
+            <Text style={styles.cardTitle}>{t('exercise.cameraTitle')}</Text>
+          </View>
+          <View style={styles.tip}>
+            <Video size={18} color={colors.primary} />
+            <Text style={styles.tipText}>{t(`exercise.camera.${exercise}`)}</Text>
+          </View>
+        </Card>
+
+        <Card style={{ marginBottom: 14 }}>
+          <View style={styles.cardHead}>
+            <View style={styles.iconBox}><ScanLine size={22} color={colors.primary} /></View>
+            <Text style={styles.cardTitle}>{t('exercise.checksTitle')}</Text>
+          </View>
+          <Text style={styles.tipText}>{t(`exercise.checks.${exercise}`)}</Text>
+        </Card>
+
         <Card>
           <SectionTitle>{t('exercise.tipsTitle')}</SectionTitle>
           {tips.map((key) => (
@@ -69,16 +104,29 @@ export default function ExerciseScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
+        {DEMO_MODE ? <Text style={styles.note}>{t('exercise.demoNote')}</Text> : null}
+
         <View style={{ gap: 12, marginTop: 20 }}>
-          <Button
-            title={stage === 'extracting' ? t('exercise.extracting') : stage === 'analyzing' ? t('exercise.analyzing') : t('exercise.upload')}
-            icon={Upload}
-            onPress={() => pick(false)}
-            loading={busy}
-          />
-          {Platform.OS !== 'web' ? (
+          {DEMO_MODE ? null : (
+            <Button
+              title={stage === 'extracting' ? t('exercise.extracting') : stage === 'analyzing' ? t('exercise.analyzing') : t('exercise.upload')}
+              icon={Upload}
+              onPress={() => pick(false)}
+              loading={stage === 'extracting' || stage === 'analyzing'}
+              disabled={busy}
+            />
+          )}
+          {Platform.OS !== 'web' && !DEMO_MODE ? (
             <Button title={t('exercise.record')} icon={Camera} variant="ghost" onPress={() => pick(true)} disabled={busy} />
           ) : null}
+          <Button
+            title={stage === 'sample' ? t('exercise.sampleRunning') : t('exercise.runSample')}
+            icon={FlaskConical}
+            variant={DEMO_MODE ? 'primary' : 'ghost'}
+            onPress={runSample}
+            loading={stage === 'sample'}
+            disabled={busy}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -94,4 +142,8 @@ const styles = StyleSheet.create({
   tip: { flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'flex-start' },
   tipText: { color: colors.text, fontSize: 14.5, flex: 1, lineHeight: 20 },
   error: { color: colors.danger, marginTop: 16, fontSize: 14, lineHeight: 20 },
+  note: { color: colors.muted, marginTop: 16, fontSize: 13.5, lineHeight: 20 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  cardTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  iconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
 });

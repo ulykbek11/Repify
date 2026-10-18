@@ -18,6 +18,7 @@ export async function addToHistory(userId, exercise, result) {
     date: new Date().toISOString(),
     exercise,
     reps: result.total_reps || 0,
+    holdSeconds: result.mode === 'hold' ? result.hold_seconds || 0 : null,
     score: result.score || 0,
     engine: result.engine || 'local',
     synthetic: Boolean(result.synthetic),

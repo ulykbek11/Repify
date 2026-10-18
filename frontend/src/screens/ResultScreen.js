@@ -47,6 +47,18 @@ export default function ResultScreen() {
   const issues = result.errors || [];
   const strengths = result.strengths || [];
   const reps = result.rep_details || [];
+  const hold = result.mode === 'hold';
+  const intervals = result.intervals || [];
+  const angleKey = result.signal || 'knee_angle';
+  const deg = (key) => `${Math.round(preview?.angles?.[key] ?? 0)}°`;
+  // Label the joint that drives the repetition count; squat and deadlift keep the knee and hip pair.
+  const labels = {};
+  if (angleKey === 'elbow_angle') labels.elbow = t('result.elbowAngle', { deg: deg('elbow_angle') });
+  else if (angleKey === 'body_line') labels.hip = t('result.bodyLine', { deg: deg('body_line') });
+  else {
+    labels.knee = t('result.kneeAngle', { deg: deg('knee_angle') });
+    labels.hip = t('result.hipAngle', { deg: deg('hip_angle') });
+  }
   const engineLabel = result.engine === 'gemini' ? t('result.engineGemini') : t('result.engineLocal');
 
   return (
@@ -63,7 +75,11 @@ export default function ResultScreen() {
         <Card style={styles.summary}>
           <ScoreRing score={result.score || 0} label={t('result.score')} />
           <View style={styles.stats}>
-            <View style={styles.stat}><Text style={styles.statValue}>{result.total_reps ?? 0}</Text><Text style={styles.statLabel}>{t('result.reps')}</Text></View>
+            {hold ? (
+              <View style={styles.stat}><Text style={styles.statValue}>{Math.round(result.hold_seconds ?? 0)}</Text><Text style={styles.statLabel}>{t('result.holdTime')}</Text></View>
+            ) : (
+              <View style={styles.stat}><Text style={styles.statValue}>{result.total_reps ?? 0}</Text><Text style={styles.statLabel}>{t('result.reps')}</Text></View>
+            )}
             {result.frames_analyzed ? (
               <View style={styles.stat}><Text style={styles.statValue}>{result.frames_analyzed}</Text><Text style={styles.statLabel}>{t('result.frames')}</Text></View>
             ) : null}
@@ -81,8 +97,7 @@ export default function ResultScreen() {
             <PoseFigure
               joints={preview.joints}
               angles={preview.angles}
-              kneeLabel={t('result.kneeAngle', { deg: `${Math.round(preview.angles?.knee_angle ?? 0)}°` })}
-              hipLabel={t('result.hipAngle', { deg: `${Math.round(preview.angles?.hip_angle ?? 0)}°` })}
+              labels={labels}
             />
           </Card>
         ) : null}
@@ -115,6 +130,19 @@ export default function ResultScreen() {
           <Card style={{ marginTop: 16 }}>
             <SectionTitle>{t('result.body')}</SectionTitle>
             <View style={styles.row}><Ruler size={18} color={colors.muted} /><Text style={styles.rowText}>{result.calibration_notes}</Text></View>
+          </Card>
+        ) : null}
+
+        {intervals.length ? (
+          <Card style={{ marginTop: 16 }}>
+            <SectionTitle>{t('result.intervals')}</SectionTitle>
+            {intervals.map((item) => (
+              <View key={item.index} style={styles.repRow}>
+                <Text style={[styles.repLabel, { width: 108 }]}>{t('result.interval', { from: (item.index - 1) * 5, to: item.index * 5 })}</Text>
+                <View style={styles.barTrack}><View style={[styles.barFill, { width: `${item.score}%`, backgroundColor: item.score >= 80 ? colors.success : item.score >= 60 ? colors.warning : colors.danger }]} /></View>
+                <Text style={styles.repScore}>{item.score}</Text>
+              </View>
+            ))}
           </Card>
         ) : null}
 

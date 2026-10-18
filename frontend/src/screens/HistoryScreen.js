@@ -70,7 +70,7 @@ export default function HistoryScreen() {
                     <Text style={styles.itemMeta}>
                       {new Date(item.date).toLocaleDateString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       {'  -  '}
-                      {t('history.repsCount', { n: item.reps })}
+                      {item.holdSeconds != null ? t('history.holdSeconds', { n: Math.round(item.holdSeconds) }) : t('history.repsCount', { n: item.reps })}
                     </Text>
                   </View>
                   <Text style={[styles.itemScore, { color: scoreColor(item.score) }]}>{item.score}</Text>

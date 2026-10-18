@@ -21,7 +21,9 @@ LANDMARK_NAMES = [
 ]
 
 # Joints used by the analysis (one body side is picked per video).
-ANALYSIS_JOINTS = ["shoulder", "hip", "knee", "ankle", "heel", "foot_index"]
+ANALYSIS_JOINTS = ["shoulder", "elbow", "wrist", "hip", "knee", "ankle", "heel", "foot_index"]
+# Midline landmarks that are not tied to a body side (used for the chin-over-bar check).
+CENTER_JOINTS = ["nose"]
 
 Point = Dict[str, float]
 
@@ -71,8 +73,16 @@ def visible_side(frame: Dict[str, Point]) -> str:
     return "left" if mean_visibility("left") >= mean_visibility("right") else "right"
 
 
-def build_frames(frames: List[Dict[str, Point]], side: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Reduce full-body frames to the analysis payload: one side, joints + angles."""
+def build_frames(
+    frames: List[Dict[str, Point]],
+    side: Optional[str] = None,
+    timestamps: Optional[List[Optional[float]]] = None,
+) -> List[Dict[str, Any]]:
+    """Reduce full-body frames to the analysis payload: one side, joints + angles.
+
+    ``timestamps`` (milliseconds, one per frame) are kept as ``t_ms`` so hold
+    exercises such as the plank can be timed.
+    """
     if not frames:
         return []
     side = side or visible_side(frames[0])
@@ -88,11 +98,43 @@ def build_frames(frames: List[Dict[str, Point]], side: Optional[str] = None) -> 
             joints[joint] = {"x": round(pt["x"], 4), "y": round(pt["y"], 4), "visibility": vis}
             confidence[joint] = vis
 
+        for joint in CENTER_JOINTS:  # side independent, not part of the confidence average
+            pt = frame.get(joint)
+            if pt is not None:
+                joints[joint] = {
+                    "x": round(pt["x"], 4), "y": round(pt["y"], 4),
+                    "visibility": round(pt.get("visibility", 0.0), 3),
+                }
+
         angles: Dict[str, float] = {}
+        if all(j in joints for j in ("shoulder", "elbow", "wrist")):
+            angles["elbow_angle"] = round(angle_at(joints["shoulder"], joints["elbow"], joints["wrist"]), 1)
+        if all(j in joints for j in ("shoulder", "hip", "ankle")):
+            angles["body_line"] = round(angle_at(joints["shoulder"], joints["hip"], joints["ankle"]), 1)
         if all(j in joints for j in ("hip", "knee", "ankle")):
             angles["knee_angle"] = round(angle_at(joints["hip"], joints["knee"], joints["ankle"]), 1)
         if all(j in joints for j in ("shoulder", "hip", "knee")):
             angles["hip_angle"] = round(angle_at(joints["shoulder"], joints["hip"], joints["knee"]), 1)
             angles["torso_lean"] = round(torso_lean(joints["shoulder"], joints["hip"]), 1)
-        out.append({"frame_idx": idx, "joints": joints, "angles": angles, "confidence": confidence})
+        entry: Dict[str, Any] = {"frame_idx": idx, "joints": joints, "angles": angles, "confidence": confidence}
+        if timestamps is not None and idx < len(timestamps) and timestamps[idx] is not None:
+            entry["t_ms"] = float(timestamps[idx])
+        out.append(entry)
     return out
+
+
+def hip_offset_from_line(joints: Dict[str, Dict[str, float]]) -> Optional[float]:
+    """Signed vertical distance of the hip from the shoulder-ankle line.
+
+    Image y points down, so a positive value means the hip is BELOW the line
+    (sagging) and a negative value means it is above it (piking). Returns None
+    when a joint is missing or the line is vertical.
+    """
+    if not all(k in joints for k in ("shoulder", "hip", "ankle")):
+        return None
+    sh, hip, an = joints["shoulder"], joints["hip"], joints["ankle"]
+    dx = an["x"] - sh["x"]
+    if abs(dx) < 1e-6:
+        return None
+    line_y = sh["y"] + (hip["x"] - sh["x"]) * (an["y"] - sh["y"]) / dx
+    return hip["y"] - line_y

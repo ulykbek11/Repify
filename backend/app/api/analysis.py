@@ -11,9 +11,10 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.services import gemini_analyzer
+from app.services import exercises as exercise_registry
 from app.services.local_analyzer import analyze_local, deepest_frame
 from app.services.pose_features import build_frames, landmarks_to_named
-from app.services.sample_data import generate_pose_sequence
+from app.services.sample_data import SAMPLE_EXERCISES, generate_pose_sequence
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["analysis"])
@@ -41,8 +42,14 @@ class AnalyzeRequest(BaseModel):
 
 
 def normalize_exercise(raw: str) -> str:
-    raw = raw.lower().strip()
-    return "deadlift" if raw in ("deadlifts", "deadlift") or "тяг" in raw else "squat"
+    """Map a free-form name ("squats", "Bench press", "подтягивания") to an exercise id."""
+    exercise = exercise_registry.normalize_exercise(raw)
+    if exercise is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown exercise '{raw}'. Supported: {', '.join(exercise_registry.EXERCISE_IDS)}",
+        )
+    return exercise
 
 
 def run_analysis(
@@ -53,11 +60,12 @@ def run_analysis(
     language: str = "en",
 ) -> Dict[str, Any]:
     """Frames -> angles -> Gemini (if configured) or the local analyzer."""
-    named = [landmarks_to_named([lm.model_dump() for lm in f.landmarks]) for f in pose_sequence if len(f.landmarks) >= 33]
+    valid = [f for f in pose_sequence if len(f.landmarks) >= 33]
+    named = [landmarks_to_named([lm.model_dump() for lm in f.landmarks]) for f in valid]
     if len(named) < 3:
         raise HTTPException(status_code=400, detail="At least 3 frames with 33 landmarks are required")
 
-    frames = build_frames(named)
+    frames = build_frames(named, timestamps=[f.timestamp for f in valid])
     result: Optional[Dict[str, Any]] = None
     if gemini_analyzer.is_configured():
         try:
@@ -74,6 +82,10 @@ def run_analysis(
         else None
     )
     result["frames_analyzed"] = len(frames)
+    spec = exercise_registry.SPECS[exercise]
+    result.setdefault("exercise", exercise)
+    result.setdefault("signal", spec.signal)
+    result.setdefault("mode", "hold" if spec.mode == "hold" else "reps")
     return result
 
 
@@ -88,9 +100,14 @@ async def analyze(request: AnalyzeRequest) -> Dict[str, Any]:
     )
 
 
+@router.get("/exercises", summary="Supported exercises, camera view and what is checked")
+async def list_exercises() -> List[Dict[str, Any]]:
+    return exercise_registry.describe()
+
+
 @router.get("/sample-analysis", summary="Analyse a built-in synthetic sequence (no video needed)")
 async def sample_analysis(
-    exercise: str = Query("squat", pattern="^(squat|deadlift)$"),
+    exercise: str = Query("squat", pattern="^(" + "|".join(SAMPLE_EXERCISES) + ")$"),
     language: str = Query("en", pattern="^(en|ru)$"),
 ) -> Dict[str, Any]:
     sequence = [Frame(**f) for f in generate_pose_sequence(exercise)]
@@ -125,7 +142,7 @@ async def extract_poses(video: UploadFile = File(...)) -> Dict[str, Any]:
         zero = {"x": 0.0, "y": 0.0, "z": 0.0, "visibility": 0.0}
         return {
             "pose_sequence": [
-                {"landmarks": [p.get(n, zero) for n in LANDMARK_NAMES], "timestamp": i * 33}
+                {"landmarks": [p.get(n, zero) for n in LANDMARK_NAMES], "timestamp": p.get("_t_ms", i * 33)}
                 for i, p in enumerate(poses)
             ]
         }
