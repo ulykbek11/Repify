@@ -37,12 +37,12 @@ export default function ExerciseScreen() {
     else setError(t('exercise.errFailed', { message: e.message }));
   }
 
-  async function analyzeLandmarks(poseSequence) {
+  async function analyzeLandmarks(poseSequence, replay) {
     setError(null);
     setStage('analyzing');
     try {
       const result = await analyze({ poseSequence, exercise, language, heightCm: profile.heightCm });
-      navigation.navigate('Result', { result, exercise });
+      navigation.navigate('Result', { result, exercise, replay });
     } catch (e) {
       fail(e);
     } finally {
@@ -57,7 +57,9 @@ export default function ExerciseScreen() {
       setProgress({ fraction: 0, phase: 'model' });
       const poseSequence = await extractPoses(asset, (fraction, phase) => setProgress({ fraction, phase }));
       setProgress(null);
-      await analyzeLandmarks(poseSequence);
+      // Web keeps the picked file in memory so the result can replay it with the landmarks on top.
+      const replay = Platform.OS === 'web' && asset.uri ? { uri: asset.uri, poses: poseSequence } : undefined;
+      await analyzeLandmarks(poseSequence, replay);
     } catch (e) {
       fail(e);
       setStage(null);

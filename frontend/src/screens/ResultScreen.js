@@ -9,6 +9,7 @@ import { useLanguage } from '../i18n';
 import { addToHistory } from '../lib/history';
 import { Button, Card, SectionTitle } from '../components/ui';
 import PoseFigure from '../components/PoseFigure';
+import ReplayVideo from '../components/ReplayVideo';
 
 function ScoreRing({ score, label }) {
   const size = 128, stroke = 12, r = (size - stroke) / 2, c = 2 * Math.PI * r;
@@ -35,7 +36,7 @@ function ScoreRing({ score, label }) {
 export default function ResultScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation();
-  const { result, exercise, fromHistory } = useRoute().params;
+  const { result, exercise, fromHistory, replay } = useRoute().params;
 
   useEffect(() => {
     if (!fromHistory) addToHistory(exercise, result);
@@ -88,7 +89,20 @@ export default function ResultScreen() {
           <View style={styles.badge}>{result.engine === 'gemini' ? <Sparkles size={14} color={colors.primary} /> : <Cpu size={14} color={colors.primary} />}<Text style={styles.badgeText}>{engineLabel}</Text></View>
         </View>
 
-        {preview?.joints ? (
+        {replay?.uri && replay.poses?.length ? (
+          <Card style={{ marginTop: 16 }}>
+            <Text style={styles.cardLabel}>{t('result.replay')}</Text>
+            <ReplayVideo
+              testID="result-replay"
+              uri={replay.uri}
+              poses={replay.poses}
+              signal={angleKey}
+              labels={{ knee: t('result.replayKnee'), hip: t('result.replayHip'), elbow: t('result.replayElbow') }}
+            />
+          </Card>
+        ) : null}
+
+        {!replay && preview?.joints ? (
           <Card style={{ alignItems: 'center', marginTop: 16 }}>
             <Text style={styles.cardLabel}>{t('result.pose')}</Text>
             <PoseFigure
