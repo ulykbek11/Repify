@@ -102,7 +102,7 @@ uvicorn app.main:app --reload --port 8000
 pytest                          # run the tests
 ```
 
-Open http://localhost:8000/docs for the API. `GET /health` reports which engine is active.
+Open http://localhost:8000/docs for the API. `GET /health` reports which engine is active. A short endpoint reference is in [docs/API.md](docs/API.md).
 
 Or with Docker: `docker build -t repify-api backend && docker run -p 8000:8000 repify-api`.
 
@@ -177,7 +177,7 @@ The project went through several iterations: an ML-model experiment for techniqu
 ```
 backend/    FastAPI service, analyzers, tests (with generated landmark fixtures), Dockerfile
 frontend/   Expo app (screens, live camera, i18n, API client, on-device profile and history)
-docs/       screenshots, ADDING_EXERCISES.md
+docs/       screenshots, ADDING_EXERCISES.md, API.md
 render.yaml Render blueprint for the backend (optional; the API also runs on Vercel)
 .github/    CI workflow
 ```
