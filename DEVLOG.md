@@ -3,6 +3,15 @@
 A short, human-readable history of how Repify got to where it is. It is written
 from the git history; see `git log` for the full detail.
 
+## 2026-10-29 to 2026-11-02: Docs and tests
+
+- Added this devlog and an API reference (`docs/API.md`) covering the health,
+  exercises, extract-poses and analyze endpoints.
+- New unit tests for the pose geometry helpers (hip offset sign convention,
+  visible side selection, `build_frames` edge cases) and a test that checks the
+  English and Russian feedback strings use matching, known format placeholders.
+- No runtime behaviour changed in this period.
+
 ## 2026-10-24: Result replay
 
 - The result screen on the web now replays the analysed video with the detected
