@@ -3,6 +3,13 @@
 A short, human-readable history of how Repify got to where it is. It is written
 from the git history; see `git log` for the full detail.
 
+## 2026-11-03 to 2026-11-08: Testing guide
+
+- Added `docs/TESTING.md`, which explains how to run the backend and app test
+  suites, what each test file covers and how the synthetic pose fixtures work,
+  and linked it from the README.
+- No runtime behaviour changed in this period.
+
 ## 2026-10-29 to 2026-11-02: Docs and tests
 
 - Added this devlog and an API reference (`docs/API.md`) covering the health,
